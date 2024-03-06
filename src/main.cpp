@@ -1,8 +1,12 @@
 #include <Arduino.h>
 
-#include "display.h"
+#define PRO_FEATURES // Only define this for MMPro
 
-TFT_Parallel display(320, 170);
+#ifdef PRO_FEATURES
+  #include "display.h"
+
+  TFT_Parallel display(320, 170);
+#endif
 
 void setup() {
   // put your setup code here, to run once:
@@ -11,16 +15,18 @@ void setup() {
 
   delay(3000);
 
+#ifdef PRO_FEATURES
   display.init();
 
   display.setTextColor(color_rgb(255, 255, 255));
   display.setTextSize(2);
+#endif
 }
 
-uint32_t startTime = 0;
 void loop() {
   // put your main code here, to run repeatedly:
   static uint32_t t = 0;
+#ifdef PRO_FEATURES
   while (!display.done_refreshing());
   display.clear();
 
@@ -31,4 +37,5 @@ void loop() {
   display.printf("Frame %i", ++t);
 
   display.refresh();
+#endif
 }
