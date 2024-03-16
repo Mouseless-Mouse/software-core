@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
-#define PRO_FEATURES // Only define this for MMPro
+// #define PRO_FEATURES Only define this for MMPro (handled automatically by platformio config when building project)
+// wrap statements in #ifdef DEBUG #endif to enable them only in debug builds
 
 #ifdef PRO_FEATURES
   #include "display.h"
