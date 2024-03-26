@@ -5,6 +5,7 @@
 // #define PRO_FEATURES Only define this for MMPro (handled automatically by platformio config when building project)
 // wrap statements in #ifdef DEBUG #endif to enable them only in debug builds
 
+Sensor redBox;
 
 void setup() {
   Serial.begin(115200);
@@ -13,7 +14,7 @@ void setup() {
   // Necessary for boards with native USB (like the SAMD51 Thing+).
   // For a final version of a project that does not need serial debug (or a USB cable plugged in),
   // Comment out this while loop, or it will prevent the remaining code from running.
-  Sensor redBox;
+  
 
   redBox.init();
   
@@ -22,9 +23,9 @@ void setup() {
 
 
 void loop() {
-    delay(10);
+  delay(10);
   
-
-    Serial.println("asdfasdfasdf");
+  redBox.printData(redBox.getData());
+    
 
 }

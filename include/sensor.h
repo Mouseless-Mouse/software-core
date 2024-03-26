@@ -62,6 +62,13 @@ public:
         }
         return data;
     }
+
+    
+
+    void printData(rData data){
+        Serial.printf("% 5.2f,\t % 5.2f,\t % 5.2f" , data.roll,data.pitch,data.yaw);
+        Serial.println();
+    }
 };
 
 
