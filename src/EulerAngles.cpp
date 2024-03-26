@@ -1,13 +1,13 @@
-// #include <Arduino.h>
 
-// //#include "sensor.h"
+// #include <Arduino.h>
 
 // #include <Wire.h>
 
-// #include "SparkFun_BNO08x_Arduino_Library.h"
+
 
 // void setReports(void);
 
+// #include "SparkFun_BNO08x_Arduino_Library.h"  // CTRL+Click here to get the library: http://librarymanager/All#SparkFun_BNO08x
 // BNO08x myIMU;
 
 // // For the most reliable interaction with the SHTP bus, we need
@@ -37,7 +37,7 @@
 //   Wire.begin(43,44);
 
 //   //if (myIMU.begin() == false) {  // Setup without INT/RST control (Not Recommended)
-//   if (myIMU.begin(BNO08X_ADDR, Wire,-1,-1) == false) {
+//   if (myIMU.begin(BNO08X_ADDR, Wire,-1, -1) == false) {
 //     Serial.println("BNO08x not detected at default I2C address. Check your jumpers and the hookup guide. Freezing...");
 //     while (1)
 //       ;
@@ -55,11 +55,11 @@
 // // Here is where you define the sensor outputs you want to receive
 // void setReports(void) {
 //   Serial.println("Setting desired reports");
-//   if (myIMU.enableGyro() == true) {
-//     Serial.println(F("Gyro enabled"));
-//     Serial.println(F("Output in form x, y, z, in radians per second"));
+//   if (myIMU.enableGeomagneticRotationVector() == true) {
+//     Serial.println(F("Geomagnetic Rotation vector enabled"));
+//     Serial.println(F("Output in form roll, pitch, yaw"));
 //   } else {
-//     Serial.println("Could not enable gyro");
+//     Serial.println("Could not enable geomagnetic rotation vector");
 //   }
 // }
 
@@ -67,31 +67,29 @@
 //   delay(10);
 
 //   if (myIMU.wasReset()) {
-//     Serial.println("sensor was reset ");
+//     Serial.print("sensor was reset ");
 //     setReports();
 //   }
 
 //   // Has a new event come in on the Sensor Hub Bus?
 //   if (myIMU.getSensorEvent() == true) {
 
-    
-
 //     // is it the correct sensor data we want?
-//     if (myIMU.getSensorEventID() == SENSOR_REPORTID_GYROSCOPE_CALIBRATED) {
+//     if (myIMU.getSensorEventID() == SENSOR_REPORTID_GEOMAGNETIC_ROTATION_VECTOR) {
 
-//       float x = myIMU.getGyroX();
-//       float y = myIMU.getGyroY();
-//       float z = myIMU.getGyroZ();
+//     float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
+//     float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
+//     float yaw = (myIMU.getYaw()) * 180.0 / PI; // Convert yaw / heading to degrees
 
-//       // Serial.print(x, 2);
-//       // Serial.print(F(",\t"));
-//       // Serial.print(y, 2);
-//       // Serial.print(F(",\t"));
-//       // Serial.print(z, 2);
+//     Serial.print(roll, 1);
+//     Serial.print(F(","));
+//     Serial.print(pitch, 1);
+//     Serial.print(F(","));
+//     Serial.print(yaw, 1);
 
-//       Serial.printf("% 5.2f,\t % 5.2f,\t % 5.2f" , x,y,z);
 
-//       Serial.println();
+
+//     Serial.println();
 //     }
 //   }
 // }
