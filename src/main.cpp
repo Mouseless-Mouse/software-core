@@ -13,7 +13,7 @@
 #include "display.h"
 
 TFT_Parallel display(320, 170);
-// volatile bool usbConnState = false;
+volatile bool usbConnState = false;
 
 auto displayTask = Task("Display", 5000, 2, +[](){
     static uint32_t t = 0;
@@ -25,8 +25,8 @@ auto displayTask = Task("Display", 5000, 2, +[](){
         display.print("Hello, Mouseless World!");
         display.setCursor(10, 40);
         display.printf("Frame %i", ++t);
-        // display.setCursor(10, 70);
-        // display.printf("USB %s", usbConnState ? "Connected" : "Disconnected");
+        display.setCursor(10, 70);
+        display.printf("USB %s", usbConnState ? "Connected" : "Disconnected");
 
         display.refresh();
         while (!display.done_refreshing());
@@ -45,12 +45,12 @@ auto imuTask = Task("IMU Polling", 5000, 1, +[](const uint16_t freq){
     }
 });
 
-// auto usbConnStateTask = Task("USB Connection State Monitoring", 4000, 1, +[](){
-//     while (1) {
-//         usbConnState = USBStorage.isReady();
-//         vTaskDelay(pdMS_TO_TICKS(100));
-//     }
-// });
+auto usbConnStateTask = Task("USB Connection State Monitoring", 4000, 1, +[](){
+    while (1) {
+        usbConnState = true;    // Find something that can tell whether USB is connected
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+});
 
 void setup() {
     Serial.begin(115200);
@@ -66,7 +66,7 @@ void setup() {
 
     initSerial();
     initMSC();
-    // usbConnStateTask();
+    usbConnStateTask();
 
 #ifdef PRO_FEATURES
     display.init();
