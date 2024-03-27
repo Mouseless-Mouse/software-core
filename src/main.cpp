@@ -1,5 +1,7 @@
 #include <Arduino.h>
 
+#include "sensor.h"
+
 // #define PRO_FEATURES Only define this for MMPro (handled automatically by platformio config when building project)
 // wrap statements in #ifdef DEBUG #endif to enable them only in debug builds
 #include "sensor.h"
@@ -27,9 +29,13 @@ auto imuTask = Task("IMU Polling", 5000, 2, +[](const uint16_t freq /*, const ui
 });
 
 void setup() {
-  // put your setup code here, to run once:
-  setCpuFrequencyMhz(240);
   Serial.begin(115200);
+  
+  while(!Serial) delay(10); // Wait for Serial to become available.
+  // Necessary for boards with native USB (like the SAMD51 Thing+).
+  // For a final version of a project that does not need serial debug (or a USB cable plugged in),
+  // Comment out this while loop, or it will prevent the remaining code from running.
+  
 
   delay(3000);
 
@@ -42,14 +48,17 @@ void setup() {
 
   msg_assert(BNO086::init(), "Could not initialize IMU");
   imuTask(60);
+  redBox.init();
+  
 }
 
+
+
 void loop() {
-  // put your main code here, to run repeatedly:
-  static uint32_t t = 0;
-#ifdef PRO_FEATURES
-  while (!display.done_refreshing());
-  display.clear();
+  delay(10);
+  
+  redBox.printData(redBox.getData());
+    
 
   // Draw code goes between `display.clear()` and `display.refresh()`
   display.setCursor(10, 80);
