@@ -2,9 +2,6 @@
 
 #include <Arduino.h>
 
-// Commenting this out will disable all `msg_assert`s (and their performance impacts)
-#define DEBUG
-
 #ifdef DEBUG
 #define msg_assert(condition, fmt_msg, ...) msg_assert_impl((condition), __PRETTY_FUNCTION__, (fmt_msg), ## __VA_ARGS__)
 #else
