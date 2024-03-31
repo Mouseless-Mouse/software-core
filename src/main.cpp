@@ -14,9 +14,12 @@
 
 TFT_Parallel display(320, 170);
 volatile bool usbConnState = false;
+volatile bool serialState = false;
 
-auto displayTask = Task("Display", 5000, 2, +[](){
+auto displayTask = Task("Display", 5000, 1, +[](){
     static uint32_t t = 0;
+    char c = '_';
+    std::string msg = "";
     while (1) {
         display.clear();
 
@@ -26,9 +29,14 @@ auto displayTask = Task("Display", 5000, 2, +[](){
         display.setCursor(10, 40);
         display.printf("Frame %i", ++t);
         display.setCursor(10, 70);
-        display.printf("USB %s", usbConnState ? "Connected" : "Disconnected");
+        display.printf("Serial %s", serialState ? "Connected" : "Disconnected");
+        display.setCursor(10, 100);
+        display.print(USBSerial.getBitrate());
+        display.setCursor(10, 130);
+        display.print(msg.c_str());
 
         display.refresh();
+        vTaskDelay(pdMS_TO_TICKS(1));   // I hate multithreading <3
         while (!display.done_refreshing());
     }
 });
@@ -64,9 +72,9 @@ void setup() {
 
     delay(3000);
 
-    initSerial();
+    serialState = initSerial();
     initMSC();
-    usbConnStateTask();
+    // usbConnStateTask();
 
 #ifdef PRO_FEATURES
     display.init();
@@ -79,10 +87,14 @@ void setup() {
 
     if (BNO086::init())
         imuTask(100);
-    else
-        Serial.println("Could not initialize BNO086");
+    else {
+        while (1) {
+            USBSerial.println("Could not initialize BNO086");
+            delay(1000);
+        }
+    }
 }
 
 void loop() {
-
+    
 }
