@@ -44,7 +44,7 @@
 
 #define BUFFER_SIZE_BYTES EXAMPLE_LCD_H_RES * EXAMPLE_LCD_V_RES * sizeof(uint16_t)
 
-const byte BACKLIGHT_PIN = 15;
+const byte BACKLIGHT_PIN = 38;
 
 static bool on_color_trans_done(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx);
 
@@ -59,8 +59,8 @@ public:
 
     void init() {
         pinMode(EXAMPLE_PIN_LCD_RD, INPUT_PULLUP);
-        pinMode(EXAMPLE_PIN_NUM_POWER, OUTPUT);
-        digitalWrite(EXAMPLE_PIN_NUM_POWER, EXAMPLE_LCD_BK_LIGHT_ON_LEVEL);
+        // pinMode(EXAMPLE_PIN_NUM_POWER, OUTPUT);
+        // digitalWrite(EXAMPLE_PIN_NUM_POWER, EXAMPLE_LCD_BK_LIGHT_ON_LEVEL);
 
         Serial.println("Initialize Intel 8080 bus");
         esp_lcd_i80_bus_handle_t i80_bus = NULL;
@@ -124,9 +124,7 @@ public:
         ESP_ERROR_CHECK(esp_lcd_panel_set_gap(panel_handle, 0, 35));
 
         pinMode(BACKLIGHT_PIN, OUTPUT);
-        digitalWrite(BACKLIGHT_PIN, HIGH);
-        pinMode(38, OUTPUT);
-        digitalWrite(38, HIGH);
+        digitalWrite(BACKLIGHT_PIN, EXAMPLE_LCD_BK_LIGHT_ON_LEVEL);
 
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
 
