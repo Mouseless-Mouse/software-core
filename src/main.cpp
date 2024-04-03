@@ -9,12 +9,22 @@
 #include "debug.h"
 #include "usb_classes.h"
 
+extern "C" {
+#include "duktape.h"
+}
+
 #ifdef PRO_FEATURES
 #include "display.h"
 
 TFT_Parallel display(320, 170);
 volatile bool usbConnState = false;
 volatile bool serialState = false;
+
+duk_context *duk;
+static duk_ret_t native_print(duk_context *ctx) {
+    USBSerial.println(duk_to_string(ctx, 0));
+    return 0;
+}
 
 auto displayTask = Task("Display", 5000, 1, +[](){
     static uint32_t t = 0;
@@ -84,6 +94,14 @@ void setup() {
 
     displayTask();
 #endif
+
+    while (!USBSerial);
+    duk = duk_create_heap_default();
+    duk_push_c_function(duk, native_print, 1);
+    duk_put_global_string(duk, "print");
+    duk_eval_string(duk, "var fib = function(n){return n < 2 ? n : fib(n-2) + fib(n-1)}; print(fib(6));");
+    USBSerial.println((int) duk_get_int(duk, -1));
+    duk_destroy_heap(duk);
 
     if (BNO086::init())
         imuTask(100);
