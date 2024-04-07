@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <BleMouse.h>
 
 #include "sensor.h"
 
@@ -9,8 +10,10 @@
 #include "debug.h"
 #include "usb_classes.h"
 #include "touch.h"
+#include "bluetooth.h"
 
-extern "C" {
+extern "C"
+{
 #include "duktape.h"
 }
 
@@ -23,7 +26,8 @@ Global<bool> usbConnState(false);
 Global<bool> serialState(false);
 
 duk_context *duk;
-static duk_ret_t native_print(duk_context *ctx) {
+static duk_ret_t native_print(duk_context *ctx)
+{
     USBSerial.println(duk_to_string(ctx, 0));
     return 0;
 }
@@ -33,11 +37,13 @@ static duk_ret_t native_print(duk_context *ctx) {
 
 TFT_Parallel display(320, 170);
 
-void draw(TimerHandle_t timer) {
-    (void) timer;
+void draw(TimerHandle_t timer)
+{
+    (void)timer;
     static uint32_t t = 0;
 
-    while (!display.done_refreshing());
+    while (!display.done_refreshing())
+        ;
     display.clear();
 
     // Draw code goes between `display.clear()` and `display.refresh()`
@@ -55,8 +61,9 @@ void draw(TimerHandle_t timer) {
 
 #else
 // Basic version `draw` controls LED_BUILTIN
-void draw(TimerHandle_t timer) {
-    (void) timer;
+void draw(TimerHandle_t timer)
+{
+    (void)timer;
     static uint32_t t = 0;
     ledcWrite(BASIC_LEDC_CHANNEL, 128 + 127 * sin(t / 120.f * 2 * PI));
     ++t;
@@ -64,24 +71,29 @@ void draw(TimerHandle_t timer) {
 
 #endif
 
-auto imuTask = Task("IMU Polling", 5000, 1, +[](const uint16_t freq){
+auto imuTask = Task(
+    "IMU Polling", 5000, 1, +[](const uint16_t freq, bluetooth::Mouse &mouse)
+                            {
     const TickType_t delayTime = pdMS_TO_TICKS(1000 / freq);
     Orientation cur;
     while (true) {
         cur = BNO086::poll();
+        mouse.update(cur);
         USBSerial.printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
         vTaskDelay(delayTime);
-    }
-});
+    } });
 
-auto usbConnStateTask = Task("USB Connection State Monitoring", 4000, 1, +[](){
+auto usbConnStateTask = Task(
+    "USB Connection State Monitoring", 4000, 1, +[]()
+                                                {
     while (1) {
         usbConnState = true;    // Find something that can tell whether USB is connected
         vTaskDelay(pdMS_TO_TICKS(100));
-    }
-});
+    } });
 
-auto touchTask = Task("Touch State Reporting", 4000, 1, +[](){
+auto touchTask = Task(
+    "Touch State Reporting", 4000, 1, +[]()
+                                      {
     TouchPads::init<TOUCH_PAD_NUM1, TOUCH_PAD_NUM2>(60000);
     while (1) {
         static uint32_t result1;
@@ -91,11 +103,14 @@ auto touchTask = Task("Touch State Reporting", 4000, 1, +[](){
             TouchPads::status[TOUCH_PAD_NUM1]
         );
         vTaskDelay(500);
-    }
-});
+    } });
 
-void setup() {
+auto mouse = bluetooth::Mouse(1000.0 / 60);
+
+void setup()
+{
     Serial.begin(115200);
+    mouse.start();
 
 #ifdef DEBUG
     // while(!Serial) delay(10); // Wait for Serial to become available.
@@ -123,23 +138,29 @@ void setup() {
     drawCbTimer = xTimerCreateStatic("Draw Callback Timer", pdMS_TO_TICKS(17), true, NULL, draw, &drawTimerBuf);
     xTimerStart(drawCbTimer, portMAX_DELAY);
 
-    while (!USBSerial);
+    while (!USBSerial)
+        ;
     duk = duk_create_heap_default();
     duk_push_c_function(duk, native_print, 1);
     duk_put_global_string(duk, "print");
     duk_eval_string(duk, "var fib = function(n){return n < 2 ? n : fib(n-2) + fib(n-1)}; print(fib(6));");
-    USBSerial.println((int) duk_get_int(duk, -1));
+    USBSerial.println((int)duk_get_int(duk, -1));
     duk_destroy_heap(duk);
 
     touchTask();
 
     if (BNO086::init())
-        imuTask(100);
-    else {
-        USBSerial.println("Could not initialize BNO086");
+        imuTask(100, mouse);
+    else
+    {
+        while (1)
+        {
+            USBSerial.println("Could not initialize BNO086");
+            delay(1000);
+        }
     }
 }
 
-void loop() {
-    
+void loop()
+{
 }
