@@ -8,6 +8,7 @@
 #include "taskwrapper.h"
 #include "debug.h"
 #include "usb_classes.h"
+#include "touch.h"
 
 extern "C" {
 #include "duktape.h"
@@ -120,10 +121,7 @@ void setup() {
     if (BNO086::init())
         imuTask(100);
     else {
-        while (1) {
-            USBSerial.println("Could not initialize BNO086");
-            delay(1000);
-        }
+        USBSerial.println("Could not initialize BNO086");
     }
 }
 
