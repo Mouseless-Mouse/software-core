@@ -81,6 +81,19 @@ auto usbConnStateTask = Task("USB Connection State Monitoring", 4000, 1, +[](){
     }
 });
 
+auto touchTask = Task("Touch State Reporting", 4000, 1, +[](){
+    TouchPads::init<TOUCH_PAD_NUM1, TOUCH_PAD_NUM2>(60000);
+    while (1) {
+        static uint32_t result1;
+        touch_pad_read_raw_data(TOUCH_PAD_NUM1, &result1);
+        USBSerial.printf("Touch State: %i %i\n",
+            result1,
+            TouchPads::status[TOUCH_PAD_NUM1]
+        );
+        vTaskDelay(500);
+    }
+});
+
 void setup() {
     Serial.begin(115200);
 
@@ -117,6 +130,8 @@ void setup() {
     duk_eval_string(duk, "var fib = function(n){return n < 2 ? n : fib(n-2) + fib(n-1)}; print(fib(6));");
     USBSerial.println((int) duk_get_int(duk, -1));
     duk_destroy_heap(duk);
+
+    touchTask();
 
     if (BNO086::init())
         imuTask(100);
