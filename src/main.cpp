@@ -10,7 +10,8 @@
 #include "debug.h"
 #include "usb_classes.h"
 #include "touch.h"
-#include "bluetooth.h"
+// #include "bluetooth.h"
+#include <BleMouse.h>
 
 extern "C"
 {
@@ -18,6 +19,8 @@ extern "C"
 }
 
 #define BASIC_LEDC_CHANNEL 2
+
+BleMouse mouse("Mouseless Mouse " __TIME__, "The Mouseless Gang", 69U);
 
 StaticTimer_t drawTimerBuf;
 TimerHandle_t drawCbTimer;
@@ -42,8 +45,7 @@ void draw(TimerHandle_t timer)
     (void)timer;
     static uint32_t t = 0;
 
-    while (!display.done_refreshing())
-        ;
+    while (!display.done_refreshing());
     display.clear();
 
     // Draw code goes between `display.clear()` and `display.refresh()`
@@ -72,45 +74,45 @@ void draw(TimerHandle_t timer)
 #endif
 
 auto imuTask = Task(
-    "IMU Polling", 5000, 1, +[](const uint16_t freq, bluetooth::Mouse &mouse)
-                            {
+    "IMU Polling", 5000, 1, +[](const uint16_t freq) {
     const TickType_t delayTime = pdMS_TO_TICKS(1000 / freq);
     Orientation cur;
+    uint32_t t = 0;
+    mouse.begin();
     while (true) {
         cur = BNO086::poll();
-        mouse.update(cur);
-        USBSerial.printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
-        vTaskDelay(delayTime);
-    } });
+        mouse.move(pow(cur.pitch, 3) / 60, pow(cur.roll, 3) / 60);
+        if (!(++t&31))
+            USBSerial.printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+});
 
 auto usbConnStateTask = Task(
-    "USB Connection State Monitoring", 4000, 1, +[]()
-                                                {
+    "USB Connection State Monitoring", 4000, 1, +[]() {
     while (1) {
         usbConnState = true;    // Find something that can tell whether USB is connected
         vTaskDelay(pdMS_TO_TICKS(100));
-    } });
+    }
+});
 
 auto touchTask = Task(
-    "Touch State Reporting", 4000, 1, +[]()
-                                      {
+    "Touch State Reporting", 4000, 1, +[]() {
     TouchPads::init<TOUCH_PAD_NUM1, TOUCH_PAD_NUM2>(60000);
     while (1) {
         static uint32_t result1;
         touch_pad_read_raw_data(TOUCH_PAD_NUM1, &result1);
         USBSerial.printf("Touch State: %i %i\n",
-            result1,
-            TouchPads::status[TOUCH_PAD_NUM1]
+            TouchPads::status[TOUCH_PAD_NUM1],
+            TouchPads::status[TOUCH_PAD_NUM2]
         );
         vTaskDelay(500);
-    } });
-
-auto mouse = bluetooth::Mouse(1000.0 / 60);
+    }
+});
 
 void setup()
 {
     Serial.begin(115200);
-    mouse.start();
 
 #ifdef DEBUG
     // while(!Serial) delay(10); // Wait for Serial to become available.
@@ -150,7 +152,7 @@ void setup()
     touchTask();
 
     if (BNO086::init())
-        imuTask(100, mouse);
+        imuTask(10);
     else
     {
         while (1)
@@ -161,6 +163,6 @@ void setup()
     }
 }
 
-void loop()
-{
+void loop() {
+
 }
