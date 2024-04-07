@@ -8,15 +8,12 @@
 #include "taskwrapper.h"
 #include "debug.h"
 #include "usb_classes.h"
+#include "touch.h"
 
 extern "C" {
 #include "duktape.h"
 }
 
-#ifdef PRO_FEATURES
-#include "display.h"
-
-TFT_Parallel display(320, 170);
 volatile bool usbConnState = false;
 volatile bool serialState = false;
 
@@ -25,6 +22,11 @@ static duk_ret_t native_print(duk_context *ctx) {
     USBSerial.println(duk_to_string(ctx, 0));
     return 0;
 }
+
+#ifdef PRO_FEATURES
+#include "display.h"
+
+TFT_Parallel display(320, 170);
 
 auto displayTask = Task("Display", 5000, 1, +[](){
     static uint32_t t = 0;
@@ -70,20 +72,34 @@ auto usbConnStateTask = Task("USB Connection State Monitoring", 4000, 1, +[](){
     }
 });
 
+auto touchReportTask = Task("Touch State Reporting", 4000, 1, +[](){
+    TouchPads::init<TOUCH_PAD_NUM1, TOUCH_PAD_NUM2>(80000);
+    while (1) {
+        uint32_t touchStatus;
+        touch_pad_read_raw_data(TOUCH_PAD_NUM1, &touchStatus);
+        USBSerial.printf("Touch status: %i %i\n",
+            TouchPads::status[TOUCH_PAD_NUM1],
+            TouchPads::status[TOUCH_PAD_NUM2]
+        );
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+});
+
 void setup() {
     Serial.begin(115200);
-
-#ifdef DEBUG
-    // while(!Serial) delay(10); // Wait for Serial to become available.
-    // Necessary for boards with native USB (like the SAMD51 Thing+).
-    // For a final version of a project that does not need serial debug (or a USB cable plugged in),
-    // Comment out this while loop, or it will prevent the remaining code from running.
-#endif
 
     delay(3000);
 
     serialState = initSerial();
     initMSC();
+
+#ifdef DEBUG
+    while(!USBSerial) delay(10); // Wait for Serial to become available.
+    // Necessary for boards with native USB (like the SAMD51 Thing+).
+    // For a final version of a project that does not need serial debug (or a USB cable plugged in),
+    // Comment out this while loop, or it will prevent the remaining code from running.
+#endif
+
     // usbConnStateTask();
 
 #ifdef PRO_FEATURES
@@ -95,7 +111,6 @@ void setup() {
     displayTask();
 #endif
 
-    while (!USBSerial);
     duk = duk_create_heap_default();
     duk_push_c_function(duk, native_print, 1);
     duk_put_global_string(duk, "print");
@@ -103,14 +118,12 @@ void setup() {
     USBSerial.println((int) duk_get_int(duk, -1));
     duk_destroy_heap(duk);
 
-    if (BNO086::init())
-        imuTask(100);
-    else {
-        while (1) {
-            USBSerial.println("Could not initialize BNO086");
-            delay(1000);
-        }
-    }
+    touchReportTask();
+    // if (BNO086::init())
+    //     imuTask(100);
+    // else {
+    //     USBSerial.println("Could not initialize BNO086");
+    // }
 }
 
 void loop() {
