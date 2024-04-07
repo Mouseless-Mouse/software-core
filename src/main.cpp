@@ -13,12 +13,13 @@ extern "C" {
 #include "duktape.h"
 }
 
-#ifdef PRO_FEATURES
-#include "display.h"
+#define BASIC_LEDC_CHANNEL 2
 
-TFT_Parallel display(320, 170);
-volatile bool usbConnState = false;
-volatile bool serialState = false;
+StaticTimer_t drawTimerBuf;
+TimerHandle_t drawCbTimer;
+
+Global<bool> usbConnState(false);
+Global<bool> serialState(false);
 
 duk_context *duk;
 static duk_ret_t native_print(duk_context *ctx) {
@@ -26,30 +27,39 @@ static duk_ret_t native_print(duk_context *ctx) {
     return 0;
 }
 
-auto displayTask = Task("Display", 5000, 1, +[](){
+#ifdef PRO_FEATURES
+#include "display.h"
+
+TFT_Parallel display(320, 170);
+
+void draw(TimerHandle_t timer) {
+    (void) timer;
     static uint32_t t = 0;
-    char c = '_';
-    std::string msg = "";
-    while (1) {
-        display.clear();
 
-        // Draw code goes between `display.clear()` and `display.refresh()`
-        display.setCursor(10, 10);
-        display.print("Hello, Mouseless World!");
-        display.setCursor(10, 40);
-        display.printf("Frame %i", ++t);
-        display.setCursor(10, 70);
-        display.printf("Serial %s", serialState ? "Connected" : "Disconnected");
-        display.setCursor(10, 100);
-        display.print(USBSerial.getBitrate());
-        display.setCursor(10, 130);
-        display.print(msg.c_str());
+    while (!display.done_refreshing());
+    display.clear();
 
-        display.refresh();
-        vTaskDelay(pdMS_TO_TICKS(1));   // I hate multithreading <3
-        while (!display.done_refreshing());
-    }
-});
+    // Draw code goes between `display.clear()` and `display.refresh()`
+    display.setCursor(10, 10);
+    display.print("Hello, Mouseless World!");
+    display.setCursor(10, 40);
+    display.printf("Frame %i", ++t);
+    display.setCursor(10, 70);
+    display.printf("Serial %s", serialState ? "Connected" : "Disconnected");
+    display.setCursor(10, 100);
+    display.print(USBSerial.getBitrate());
+
+    display.refresh();
+}
+
+#else
+// Basic version `draw` controls LED_BUILTIN
+void draw(TimerHandle_t timer) {
+    (void) timer;
+    static uint32_t t = 0;
+    ledcWrite(BASIC_LEDC_CHANNEL, 128 + 127 * sin(t / 120.f * 2 * PI));
+    ++t;
+}
 
 #endif
 
@@ -91,9 +101,13 @@ void setup() {
 
     display.setTextColor(color_rgb(255, 255, 255));
     display.setTextSize(2);
-
-    displayTask();
+#else
+    ledcSetup(BASIC_LEDC_CHANNEL, 1000, 8);
+    ledcAttachPin(LED_BUILTIN, BASIC_LEDC_CHANNEL);
 #endif
+
+    drawCbTimer = xTimerCreateStatic("Draw Callback Timer", pdMS_TO_TICKS(17), true, NULL, draw, &drawTimerBuf);
+    xTimerStart(drawCbTimer, portMAX_DELAY);
 
     while (!USBSerial);
     duk = duk_create_heap_default();
