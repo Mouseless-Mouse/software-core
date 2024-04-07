@@ -8,6 +8,7 @@
 #include "taskwrapper.h"
 #include "debug.h"
 #include "usb_classes.h"
+#include "BleMouse.h"
 
 #ifdef PRO_FEATURES
 #include "display.h"
@@ -15,7 +16,9 @@
 TFT_Parallel display(320, 170);
 volatile bool usbConnState = false;
 
-auto displayTask = Task("Display", 5000, 2, +[](){
+BleMouse bleMouse;
+
+auto displayTask = Task("Display", 5000, 1, +[](){
     static uint32_t t = 0;
     while (1) {
         display.clear();
@@ -27,8 +30,11 @@ auto displayTask = Task("Display", 5000, 2, +[](){
         display.printf("Frame %i", ++t);
         display.setCursor(10, 70);
         display.printf("USB %s", usbConnState ? "Connected" : "Disconnected");
+        display.setCursor(10, 100);
+        display.printf("Bluetooth %s", bleMouse.isConnected() ? "Connected" : "Disconnected");
 
         display.refresh();
+        vTaskDelay(pdMS_TO_TICKS(1));
         while (!display.done_refreshing());
     }
 });
@@ -52,9 +58,22 @@ auto usbConnStateTask = Task("USB Connection State Monitoring", 4000, 1, +[](){
     }
 });
 
+
+auto bleTask = Task("Bluetooth", 4000, 1, +[](){
+  bleMouse.begin();
+  while (true)
+  {
+    if(bleMouse.isConnected()) { // Example of workin bluetooth rwmove and add actual functionality in bluetooth task later
+        USBSerial.println("Scroll Down");
+        bleMouse.move(0,0,-1);
+    }
+    delay(2000);
+  }
+  
+});
+
 void setup() {
     Serial.begin(115200);
-
 #ifdef DEBUG
     // while(!Serial) delay(10); // Wait for Serial to become available.
     // Necessary for boards with native USB (like the SAMD51 Thing+).
@@ -67,6 +86,7 @@ void setup() {
     initSerial();
     initMSC();
     usbConnStateTask();
+    bleTask();
 
 #ifdef PRO_FEATURES
     display.init();
@@ -84,5 +104,5 @@ void setup() {
 }
 
 void loop() {
-
+  
 }
