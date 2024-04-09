@@ -27,6 +27,7 @@ TimerHandle_t drawCbTimer;
 
 Global<bool> usbConnState(false);
 Global<bool> serialState(false);
+Global<bool> mouseInitialized(false);
 
 duk_context *duk;
 static duk_ret_t native_print(duk_context *ctx)
@@ -79,11 +80,13 @@ auto imuTask = Task(
     Orientation cur;
     uint32_t t = 0;
     mouse.begin();
+    mouseInitialized = true;
     while (true) {
         cur = BNO086::poll();
         mouse.move(pow(cur.pitch, 3) / 60, pow(cur.roll, 3) / 60);
-        if (!(++t&31))
+        if (t % 32 == 0) {
             USBSerial.printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
+        }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 });
@@ -106,6 +109,11 @@ auto touchTask = Task(
             TouchPads::status[TOUCH_PAD_NUM1],
             TouchPads::status[TOUCH_PAD_NUM2]
         );
+        if (mouseInitialized && TouchPads::status[TOUCH_PAD_NUM1]) {
+            mouse.press(MOUSE_LEFT);
+        } else if (mouseInitialized) {
+            mouse.release(MOUSE_LEFT);
+        }
         vTaskDelay(500);
     }
 });
