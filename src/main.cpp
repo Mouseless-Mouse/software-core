@@ -30,8 +30,7 @@ Global<bool> serialState(false);
 Global<bool> mouseInitialized(false);
 
 duk_context *duk;
-static duk_ret_t native_print(duk_context *ctx)
-{
+static duk_ret_t native_print(duk_context *ctx) {
     USBSerial.println(duk_to_string(ctx, 0));
     return 0;
 }
@@ -41,8 +40,7 @@ static duk_ret_t native_print(duk_context *ctx)
 
 TFT_Parallel display(320, 170);
 
-void draw(TimerHandle_t timer)
-{
+void draw(TimerHandle_t timer) {
     (void)timer;
     static uint32_t t = 0;
 
@@ -64,8 +62,7 @@ void draw(TimerHandle_t timer)
 
 #else
 // Basic version `draw` controls LED_BUILTIN
-void draw(TimerHandle_t timer)
-{
+void draw(TimerHandle_t timer) {
     (void)timer;
     static uint32_t t = 0;
     ledcWrite(BASIC_LEDC_CHANNEL, 128 + 127 * sin(t / 120.f * 2 * PI));
@@ -118,8 +115,7 @@ auto touchTask = Task(
     }
 });
 
-void setup()
-{
+void setup() {
     Serial.begin(115200);
 
 #ifdef DEBUG
@@ -148,8 +144,7 @@ void setup()
     drawCbTimer = xTimerCreateStatic("Draw Callback Timer", pdMS_TO_TICKS(17), true, NULL, draw, &drawTimerBuf);
     xTimerStart(drawCbTimer, portMAX_DELAY);
 
-    while (!USBSerial)
-        ;
+    while (!USBSerial);
     duk = duk_create_heap_default();
     duk_push_c_function(duk, native_print, 1);
     duk_put_global_string(duk, "print");
@@ -161,10 +156,8 @@ void setup()
 
     if (BNO086::init())
         imuTask(10);
-    else
-    {
-        while (1)
-        {
+    else {
+        while (1) {
             USBSerial.println("Could not initialize BNO086");
             delay(1000);
         }

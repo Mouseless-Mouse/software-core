@@ -154,6 +154,13 @@ public:
     bool done_refreshing() {
         return trans_done;
     }
+
+    uint16_t textWidth(const char *cstring) {
+        int16_t dummyX, dummyY;
+        uint16_t w, h;
+        getTextBounds(cstring, 0, 0, &dummyX, &dummyY, &w, &h);
+        return w;
+    }
 };
 
 static bool on_color_trans_done(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx) {

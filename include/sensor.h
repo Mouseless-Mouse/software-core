@@ -6,7 +6,7 @@
 #define BNO08X_ADDR 0x4B
 
 
-//Struct for rotation measurements
+// Rotation measurement structure
 struct Orientation
 {
     float roll;
@@ -15,15 +15,15 @@ struct Orientation
 };
 
 
-//Sensor Class
+// Sensor interface
 namespace BNO086 {
 
     extern BNO08x imu;
 
-    //Initializes the sensor
+    // Initialize the sensor
     bool init();
 
-    //returns the data readings
+    // Poll the sensor for new data
     Orientation& poll();
 
 } // namespace BNO086
