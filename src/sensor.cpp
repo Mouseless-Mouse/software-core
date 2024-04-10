@@ -2,9 +2,16 @@
 
 #include <Wire.h>
 
+#define PRO_PCB
+
 #ifdef PRO_FEATURES
+#ifdef PRO_PCB
+#define I2C_SCL 16
+#define I2C_SDA 21
+#else
 #define I2C_SDA 43
 #define I2C_SCL 44
+#endif
 #else
 #define I2C_SDA 5
 #define I2C_SCL 6
@@ -15,7 +22,7 @@
 BNO08x BNO086::imu;
 
 bool BNO086::init() {
-    if (!Wire.begin(43,44))
+    if (!Wire.begin(I2C_SDA, I2C_SCL))
         return false;
     if(!imu.begin())
         return false;

@@ -83,3 +83,43 @@ template <typename... Ts>
 TaskContainer<Ts...> Task(const char *&&name, const configSTACK_DEPTH_TYPE &&stackDepth, const UBaseType_t &&priority, void (*&&taskFn)(Ts...)) {
     return TaskContainer<Ts...>(std::forward<const char*>(name), std::forward<const configSTACK_DEPTH_TYPE>(stackDepth), std::forward<const UBaseType_t>(priority), std::forward<void(*)(Ts...)>(taskFn));
 }
+
+
+
+// Thread-safe global object container
+template <typename T>
+class Global {
+    volatile T obj;
+    SemaphoreHandle_t lock;
+    StaticSemaphore_t lockBuf;
+public:
+    // Default-construct global object
+    Global()
+        : obj{}
+        , lock(xSemaphoreCreateMutexStatic(&lockBuf))
+    {
+        xSemaphoreGive(lock);
+    }
+    
+    // Emplace global object
+    template <typename... Ts>
+    Global(Ts&&... args)
+        : obj{std::forward<Ts>(args)...}
+        , lock(xSemaphoreCreateMutexStatic(&lockBuf))
+    {
+        xSemaphoreGive(lock);
+    }
+
+    // Writing to the global object requires mutex acquisition
+    Global<T>& operator = (T&& rhs) {
+        xSemaphoreTake(lock, portMAX_DELAY);
+        obj = std::forward<T>(rhs);
+        xSemaphoreGive(lock);
+        return *this;
+    }
+
+    // Any thread can obtain a read-only reference at any time
+    operator const volatile T& () const {
+        return obj;
+    }
+};

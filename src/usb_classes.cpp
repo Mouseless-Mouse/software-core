@@ -61,10 +61,10 @@ class MyCDCCallbacks : public CDCCallbacks {
 
 bool initSerial()
 {
-    USBSerial.setCallbacks(new MyCDCCallbacks());
-    USBSerial.setWantedChar('x');
+    // USBSerial.setCallbacks(new MyCDCCallbacks());
+    // USBSerial.setWantedChar('x');
 
-    return USBSerial.begin();
+    return USBSerial.begin("Mouseless Debug");
 }
 
 #endif
