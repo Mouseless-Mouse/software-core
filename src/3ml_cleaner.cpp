@@ -6,11 +6,11 @@
 #include <string>
 #include <unordered_map>
 
+namespace threeml {
+
 // Create a dummy display object for text width computation
 // Note that this object does not allocate a frame buffer
 TFT_Parallel dummyDisplay(320, 170);
-
-namespace threeml {
 
 void verify_slider_attributes(const std::unordered_map<std::string, std::string> &tag_attributes) {
   bool min_encountered = false;

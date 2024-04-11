@@ -10,7 +10,6 @@
 #include "debug.h"
 #include "usb_classes.h"
 #include "touch.h"
-// #include "bluetooth.h"
 #include <BleMouse.h>
 
 extern "C"
@@ -61,6 +60,7 @@ void draw(TimerHandle_t timer) {
 }
 
 #else
+
 // Basic version `draw` controls LED_BUILTIN
 void draw(TimerHandle_t timer) {
     (void)timer;
@@ -78,7 +78,7 @@ auto imuTask = Task(
     uint32_t t = 0;
     mouse.begin();
     mouseInitialized = true;
-    while (true) {
+    while (1) {
         cur = BNO086::poll();
         mouse.move(pow(cur.pitch, 3) / 60, pow(cur.roll, 3) / 60);
         if (t % 32 == 0) {
