@@ -21,7 +21,6 @@ extern "C"
 BleMouse mouse("Mouseless Mouse " __TIME__, "The Mouseless Gang", 69U);
 
 StaticTimer_t drawTimerBuf;
-TimerHandle_t drawCbTimer;
 
 Global<bool> usbConnState(false);
 Global<bool> serialState(false);
@@ -41,33 +40,38 @@ static duk_ret_t native_print(duk_context *ctx) {
 
 TFT_Parallel display(320, 170);
 
-void draw(TimerHandle_t timer) {
-    (void)timer;
-    static uint32_t t = 0;
+auto drawTask = Task("Draw Task", 5000, 1, +[](){
+    uint32_t t = 0;
+    TickType_t wakeTime = xTaskGetTickCount();
 
-    while (!display.done_refreshing());
-    display.clear();
+    while (1) {
+        while (!display.done_refreshing());
+        display.clear();
 
-    // Draw code goes between `display.clear()` and `display.refresh()`
-    display.setCursor(10, 10);
-    display.print("Hello, Mouseless World!");
-    display.setCursor(10, 40);
-    display.printf("Frame %i", ++t);
-    display.setCursor(10, 70);
-    display.printf("USB %s", usbMounted ? "Connected" : "Disconnected");
+        // Draw code goes between `display.clear()` and `display.refresh()`
+        display.setCursor(10, 10);
+        display.print("Hello, Mouseless World!");
+        display.setCursor(10, 40);
+        display.printf("Frame %i", ++t);
+        display.setCursor(10, 70);
+        display.printf("USB %s", usbMounted ? "Connected" : "Disconnected");
 
-    display.refresh();
-}
+        display.refresh();
+
+        vTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17));
+    }
+});
 
 #else
 
 // Basic version `draw` controls LED_BUILTIN
-void draw(TimerHandle_t timer) {
-    (void)timer;
+auto drawTask = Task("Draw Task", 5000, 1, +[](){
     static uint32_t t = 0;
-    ledcWrite(BASIC_LEDC_CHANNEL, 128 + 127 * sin(t / 120.f * 2 * PI));
-    ++t;
-}
+    while (1) {
+        ledcWrite(BASIC_LEDC_CHANNEL, 128 + 127 * sin(t / 120.f * 2 * PI));
+        ++t;
+    }
+});
 
 #endif
 
@@ -94,12 +98,10 @@ auto touchTask = Task(
     while (1) {
         static uint32_t result1;
         touch_pad_read_raw_data(TOUCH_PAD_NUM1, &result1);
-        TaskLog().call([](){
-            USBSerial.printf("Touch State: %i %i\n",
-                TouchPads::status[TOUCH_PAD_NUM1],
-                TouchPads::status[TOUCH_PAD_NUM2]
-            );
-        });
+        TaskLog().printf("Touch State: %i %i\n",
+            TouchPads::status[TOUCH_PAD_NUM1],
+            TouchPads::status[TOUCH_PAD_NUM2]
+        );
         if (mouseInitialized && TouchPads::status[TOUCH_PAD_NUM1]) {
             mouse.press(MOUSE_LEFT);
         } else if (mouseInitialized) {
@@ -225,9 +227,7 @@ void setup() {
     ledcSetup(BASIC_LEDC_CHANNEL, 1000, 8);
     ledcAttachPin(LED_BUILTIN, BASIC_LEDC_CHANNEL);
 #endif
-
-    drawCbTimer = xTimerCreateStatic("Draw CB Timer", pdMS_TO_TICKS(17), true, NULL, draw, &drawTimerBuf);
-    xTimerStart(drawCbTimer, portMAX_DELAY);
+    drawTask();
 
     while (!USBSerial);
     duk = duk_create_heap_default();
