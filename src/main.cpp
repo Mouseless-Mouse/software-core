@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <BleMouse.h>
-
-#include "sensor.h"
+#include <FFat.h>
 
 // #define PRO_FEATURES Only define this for MMPro (handled automatically by platformio config when building project)
 // wrap statements in #ifdef DEBUG #endif to enable them only in debug builds
@@ -10,7 +9,7 @@
 #include "debug.h"
 #include "usb_classes.h"
 #include "touch.h"
-#include <BleMouse.h>
+#include "state.h"
 
 extern "C"
 {
@@ -27,6 +26,9 @@ TimerHandle_t drawCbTimer;
 Global<bool> usbConnState(false);
 Global<bool> serialState(false);
 Global<bool> mouseInitialized(false);
+
+Status imuState("imu");
+Status filesystemState("filesystem");
 
 duk_context *duk;
 static duk_ret_t native_print(duk_context *ctx) {
@@ -52,9 +54,7 @@ void draw(TimerHandle_t timer) {
     display.setCursor(10, 40);
     display.printf("Frame %i", ++t);
     display.setCursor(10, 70);
-    display.printf("Serial %s", serialState ? "Connected" : "Disconnected");
-    display.setCursor(10, 100);
-    display.print(USBSerial.getBitrate());
+    display.printf("USB %s", usbMounted ? "Connected" : "Disconnected");
 
     display.refresh();
 }
@@ -82,30 +82,24 @@ auto imuTask = Task(
         cur = BNO086::poll();
         mouse.move(pow(cur.pitch, 3) / 60, pow(cur.roll, 3) / 60);
         if (t % 32 == 0) {
-            USBSerial.printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
+            TaskLog().printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 });
 
-auto usbConnStateTask = Task(
-    "USB Connection State Monitoring", 4000, 1, +[]() {
-    while (1) {
-        usbConnState = true;    // Find something that can tell whether USB is connected
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-});
-
 auto touchTask = Task(
-    "Touch State Reporting", 4000, 1, +[]() {
+    "Touch Reporting", 4000, 1, +[]() {
     TouchPads::init<TOUCH_PAD_NUM1, TOUCH_PAD_NUM2>(60000);
     while (1) {
         static uint32_t result1;
         touch_pad_read_raw_data(TOUCH_PAD_NUM1, &result1);
-        USBSerial.printf("Touch State: %i %i\n",
-            TouchPads::status[TOUCH_PAD_NUM1],
-            TouchPads::status[TOUCH_PAD_NUM2]
-        );
+        TaskLog().call([](){
+            USBSerial.printf("Touch State: %i %i\n",
+                TouchPads::status[TOUCH_PAD_NUM1],
+                TouchPads::status[TOUCH_PAD_NUM2]
+            );
+        });
         if (mouseInitialized && TouchPads::status[TOUCH_PAD_NUM1]) {
             mouse.press(MOUSE_LEFT);
         } else if (mouseInitialized) {
@@ -115,8 +109,96 @@ auto touchTask = Task(
     }
 });
 
+void treeList(File &dir, int level = 0) {
+    if (!dir || !dir.isDirectory()) {
+        USBSerial.println("treeList called on non-directory");
+        return;
+    }
+    File file = dir.openNextFile();
+    while (file) {
+        if (file.isDirectory()) {
+            for (int i = 0; i < level; ++i)
+                USBSerial.print("  ");
+            USBSerial.printf("%s:\n", file.name());
+            treeList(file, level + 1);
+        }
+        else {
+            for (int i = 0; i < level; ++i)
+                USBSerial.print("  ");
+            USBSerial.println(file.name());
+        }
+        file = dir.openNextFile();
+    }
+}
+
+void getStatus(std::vector<const char*>& args) {
+    if (args.size() != 1) {
+        USBSerial.println("Expected 1 argument");
+        return;
+    }
+    const char *target = args.front();
+    Status *status = Status::find(target);
+    if (!status) {
+        USBSerial.printf("Status '%s' not found\n", target);
+        return;
+    }
+    if (!*status) {
+        USBSerial.println("Error(s) logged:");
+        const std::forward_list<const char*>& errlog = status->getLog();
+        for (const char* error : errlog) {
+            USBSerial.println(error);
+        }
+    }
+    else {
+        USBSerial.printf("Status '%s' ok\n", target);
+    }
+}
+
+void toggleMonitor(std::vector<const char*>& args) {
+    if (args.size() != 1) {
+        USBSerial.println("Expected 1 argument");
+        return;
+    }
+    const char *target = args.front();
+    if (strnlen(target, 17) > 16) {
+        USBSerial.printf("Error: Maximum task name length is %i characters\n", configMAX_TASK_NAME_LEN);
+        return;
+    }
+    TaskHandle_t monitorTask = xTaskGetHandle(target);
+    if (!monitorTask) {
+        USBSerial.printf("Monitor '%s' not found\n", target);
+        return;
+    }
+    if (TaskLog::isEnabled(monitorTask)) {
+        TaskLog::disable(monitorTask);
+        USBSerial.printf("Stopped monitoring '%s'\n", target);
+    }
+    else {
+        USBSerial.printf("Monitoring '%s'\n", target);
+        TaskLog::enable(monitorTask);
+    }
+}
+
+void systemStatus(std::vector<const char*>& args) {
+    if (!args.empty()) {
+        USBSerial.println("Expected no arguments");
+        return;
+    }
+    USBSerial.printf("Free heap: %i\n", xPortGetFreeHeapSize());
+    USBSerial.printf("Minimum free heap reached: %i\n", esp_get_minimum_free_heap_size());
+}
+
+void helpMePlz(std::vector<const char*>& args) {
+    if (!args.empty()) {
+        USBSerial.println("Help for specific commands is NYI.");
+    }
+    USBSerial.println("Registered commands:");
+    for (const std::pair<std::string, Shell::Command>& p : Shell::registry())
+        USBSerial.printf(" - %s\n", p.first.c_str());
+}
+
 void setup() {
-    Serial.begin(115200);
+    // Serial.begin(115200);
 
 #ifdef DEBUG
     // while(!Serial) delay(10); // Wait for Serial to become available.
@@ -125,11 +207,14 @@ void setup() {
     // Comment out this while loop, or it will prevent the remaining code from running.
 #endif
 
-    delay(3000);
+    Shell::registerCmd("status", getStatus);
+    Shell::registerCmd("monitor", toggleMonitor);
+    Shell::registerCmd("memory", systemStatus);
+    Shell::registerCmd("help", helpMePlz);
 
+    initUSB();
     serialState = initSerial();
     initMSC();
-    // usbConnStateTask();
 
 #ifdef PRO_FEATURES
     display.init();
@@ -141,7 +226,7 @@ void setup() {
     ledcAttachPin(LED_BUILTIN, BASIC_LEDC_CHANNEL);
 #endif
 
-    drawCbTimer = xTimerCreateStatic("Draw Callback Timer", pdMS_TO_TICKS(17), true, NULL, draw, &drawTimerBuf);
+    drawCbTimer = xTimerCreateStatic("Draw CB Timer", pdMS_TO_TICKS(17), true, NULL, draw, &drawTimerBuf);
     xTimerStart(drawCbTimer, portMAX_DELAY);
 
     while (!USBSerial);
@@ -152,18 +237,19 @@ void setup() {
     USBSerial.println((int)duk_get_int(duk, -1));
     duk_destroy_heap(duk);
 
+    filesystemState.check(FFat.begin(false), "Failed to initialize filesystem");
+    if (filesystemState) {
+        File root = FFat.open("/");
+        treeList(root);
+    }
+    
     touchTask();
 
-    if (BNO086::init())
+    imuState.check(BNO086::init(), "Failed to initialize BNO086");
+    if (imuState)
         imuTask(10);
-    else {
-        while (1) {
-            USBSerial.println("Could not initialize BNO086");
-            delay(1000);
-        }
-    }
 }
 
 void loop() {
-
+    
 }
