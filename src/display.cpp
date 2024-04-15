@@ -71,8 +71,9 @@ void TFT_Parallel::init() {
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle, false, true));
     ESP_ERROR_CHECK(esp_lcd_panel_set_gap(panel_handle, 0, 35));
 
-    pinMode(BACKLIGHT_PIN, OUTPUT);
-    digitalWrite(BACKLIGHT_PIN, EXAMPLE_LCD_BK_LIGHT_ON_LEVEL);
+    ledcSetup(BACKLIGHT_LEDC_CHANNEL, 1000, 8);
+    ledcAttachPin(BACKLIGHT_PIN, BACKLIGHT_LEDC_CHANNEL);
+    ledcWrite(BACKLIGHT_LEDC_CHANNEL, 255);
 
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
 
@@ -92,6 +93,10 @@ void TFT_Parallel::drawPixel(int16_t x, int16_t y, uint16_t color) {
 
 void TFT_Parallel::clear() {
     memset(buffer, 0, WIDTH * HEIGHT * sizeof(uint16_t));
+}
+
+void TFT_Parallel::set_backlight(uint8_t brightness) {
+    ledcWrite(BACKLIGHT_LEDC_CHANNEL, brightness);
 }
 
 void TFT_Parallel::refresh() {

@@ -227,9 +227,11 @@ void setup() {
         TaskPrint().println("Un-Boop!");
     })
     .on(Button::Event::CLICK, [](){
+        display.set_backlight(255);
         TaskPrint().println("Short Boop");
     })
     .on(Button::Event::HOLD, [](){
+        display.set_backlight(50);
         TaskPrint().println("Long Boop");
     });
 

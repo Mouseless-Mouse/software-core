@@ -45,6 +45,7 @@
 #define BUFFER_SIZE_BYTES EXAMPLE_LCD_H_RES * EXAMPLE_LCD_V_RES * sizeof(uint16_t)
 
 #define BACKLIGHT_PIN 38
+#define BACKLIGHT_LEDC_CHANNEL 2
 
 static bool on_color_trans_done(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx);
 
@@ -63,6 +64,7 @@ public:
 
     void clear();
 
+    void set_backlight(uint8_t brightness);
     void refresh();
 
     bool done_refreshing();
