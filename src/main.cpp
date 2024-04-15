@@ -26,9 +26,6 @@ Global<bool> usbConnState(false);
 Global<bool> serialState(false);
 Global<bool> mouseInitialized(false);
 
-Status imuState("imu");
-Status filesystemState("filesystem");
-
 duk_context *duk;
 static duk_ret_t native_print(duk_context *ctx) {
     USBSerial.println(duk_to_string(ctx, 0));
@@ -79,6 +76,10 @@ auto imuTask = Task(
     "IMU Polling", 5000, 1, +[](const uint16_t freq) {
     const TickType_t delayTime = pdMS_TO_TICKS(1000 / freq);
     Orientation cur;
+    if (!BNO086::init()) {
+        TaskLog().println("Failed to initialize BNO086");
+        return;
+    }
     uint32_t t = 0;
     mouse.begin();
     mouseInitialized = true;
@@ -86,7 +87,7 @@ auto imuTask = Task(
         cur = BNO086::poll();
         mouse.move(pow(cur.pitch, 3) / 60, pow(cur.roll, 3) / 60);
         if (t % 32 == 0) {
-            TaskLog().printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
+            TaskPrint().printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -98,7 +99,7 @@ auto touchTask = Task(
     while (1) {
         static uint32_t result1;
         touch_pad_read_raw_data(TOUCH_PAD_NUM1, &result1);
-        TaskLog().printf("Touch State: %i %i\n",
+        TaskPrint().printf("Touch State: %i %i\n",
             TouchPads::status[TOUCH_PAD_NUM1],
             TouchPads::status[TOUCH_PAD_NUM2]
         );
@@ -139,21 +140,17 @@ void getStatus(std::vector<const char*>& args) {
         return;
     }
     const char *target = args.front();
-    Status *status = Status::find(target);
+    if (strnlen(target, 17) > 16) {
+        USBSerial.printf("Error: Maximum task name length is %i characters\n", configMAX_TASK_NAME_LEN);
+        return;
+    }
+    TaskHandle_t status = xTaskGetHandle(target);
     if (!status) {
         USBSerial.printf("Status '%s' not found\n", target);
         return;
     }
-    if (!*status) {
-        USBSerial.println("Error(s) logged:");
-        const std::forward_list<const char*>& errlog = status->getLog();
-        for (const char* error : errlog) {
-            USBSerial.println(error);
-        }
-    }
-    else {
-        USBSerial.printf("Status '%s' ok\n", target);
-    }
+    USBSerial.println("Log entries:");
+    USBSerial.print(TaskLog(status).get().c_str()); // Log should end with newline
 }
 
 void toggleMonitor(std::vector<const char*>& args) {
@@ -171,13 +168,13 @@ void toggleMonitor(std::vector<const char*>& args) {
         USBSerial.printf("Monitor '%s' not found\n", target);
         return;
     }
-    if (TaskLog::isEnabled(monitorTask)) {
-        TaskLog::disable(monitorTask);
+    if (TaskPrint::isEnabled(monitorTask)) {
+        TaskPrint::disable(monitorTask);
         USBSerial.printf("Stopped monitoring '%s'\n", target);
     }
     else {
         USBSerial.printf("Monitoring '%s'\n", target);
-        TaskLog::enable(monitorTask);
+        TaskPrint::enable(monitorTask);
     }
 }
 
@@ -237,17 +234,16 @@ void setup() {
     USBSerial.println((int)duk_get_int(duk, -1));
     duk_destroy_heap(duk);
 
-    filesystemState.check(FFat.begin(false), "Failed to initialize filesystem");
-    if (filesystemState) {
+    if (FFat.begin(false)) {
         File root = FFat.open("/");
         treeList(root);
     }
+    else {
+        USBSerial.println("Failed to initialize filesystem");
+    }
     
     touchTask();
-
-    imuState.check(BNO086::init(), "Failed to initialize BNO086");
-    if (imuState)
-        imuTask(10);
+    imuTask(10);
 }
 
 void loop() {

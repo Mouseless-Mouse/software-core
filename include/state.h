@@ -17,27 +17,23 @@ const std::unordered_map<std::string, Command>& registry();
 
 };  // namespace Shell
 
-class Status {
-    std::string name;
-    std::forward_list<const char*> errlog;
-    decltype(errlog)::iterator logTail;
-    bool hasError;
+class LogFile : public Print {
+    std::string pLog;
 public:
-    Status(std::string name);
-    operator bool() const;
-    void logError(const char* errmsg);
-    const std::string& getName() const;
-    bool check(bool condition, const char* errmsg);
-
-    static Status* find(const char* searchName);
-    const std::forward_list<const char*>& getLog() const;
+    size_t write(const uint8_t c);
+    size_t write(const uint8_t *buffer, size_t size);
+    
+    const std::string& get();
 };
 
-class TaskLog : public Print {
-    static std::unordered_map<TaskHandle_t, bool> taskLogRegistry;
+LogFile& TaskLog();
+LogFile& TaskLog(TaskHandle_t task);
+
+class TaskPrint : public Print {
+    static std::unordered_map<TaskHandle_t, bool> taskMonitorRegistry;
 public:
-    TaskLog();
-    ~TaskLog();
+    TaskPrint();
+    ~TaskPrint();
     bool isEnabled() const;
     size_t write(const uint8_t c);
     size_t write(const uint8_t *buffer, size_t size);
