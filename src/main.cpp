@@ -11,6 +11,7 @@
 #include "taskwrapper.h"
 #include "touch.h"
 #include "usb_classes.h"
+#include "button.h"
 
 extern "C" {
 #include "duktape.h"
@@ -20,11 +21,9 @@ extern "C" {
 
 BleMouse mouse("Mouseless Mouse " __TIME__, "The Mouseless Gang", 69U);
 
-StaticTimer_t drawTimerBuf;
-
-Global<bool> usbConnState(false);
-Global<bool> serialState(false);
 Global<bool> mouseInitialized(false);
+
+Button downButton(14);
 
 duk_context *duk;
 static duk_ret_t native_print(duk_context *ctx) {
@@ -111,7 +110,7 @@ auto touchTask = Task("Touch Reporting", 4000, 1, +[]() {
         else if (mouseInitialized) {
             mouse.release(MOUSE_LEFT);
         }
-        vTaskDelay(500);
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 });
 
@@ -143,7 +142,7 @@ void getTaskLog(std::vector<const char*>& args) {
         return;
     }
     const char *target = args.front();
-    if (strnlen(target, 16) > 15) {
+    if (strnlen(target, configMAX_TASK_NAME_LEN) > configMAX_TASK_NAME_LEN - 1) {
         USBSerial.printf("Error: Maximum task name length is %i characters\n", configMAX_TASK_NAME_LEN - 1);
         return;
     }
@@ -162,14 +161,19 @@ void toggleMonitor(std::vector<const char*>& args) {
         return;
     }
     const char *target = args.front();
-    if (strnlen(target, 16) > 15) {
+    if (strnlen(target, configMAX_TASK_NAME_LEN) > configMAX_TASK_NAME_LEN - 1) {
         USBSerial.printf("Error: Maximum task name length is %i characters\n", configMAX_TASK_NAME_LEN - 1);
         return;
     }
     TaskHandle_t monitorTask = xTaskGetHandle(target);
     if (!monitorTask) {
-        USBSerial.printf("Monitor '%s' not found\n", target);
-        return;
+        if (strcmp("timer", target) != 0) {
+            USBSerial.printf("Monitor '%s' not found\n", target);
+            return;
+        }
+        else {
+            monitorTask = xTimerGetTimerDaemonTaskHandle();
+        }
     }
     if (TaskPrint::isEnabled(monitorTask)) {
         TaskPrint::disable(monitorTask);
@@ -215,6 +219,22 @@ void setup() {
                               "Mouseless World!</h1>And hello to you, too!</body>"));
     renderer.set_dom(dom);
 
+    downButton
+    .on(Button::Event::PRESS, [](){
+        TaskPrint().println("Boop!");
+    })
+    .on(Button::Event::RELEASE, [](){
+        TaskPrint().println("Un-Boop!");
+    })
+    .on(Button::Event::CLICK, [](){
+        TaskPrint().println("Short Boop");
+    })
+    .on(Button::Event::HOLD, [](){
+        TaskPrint().println("Long Boop");
+    });
+
+    downButton.attach();
+
     Shell::init();
 
     Shell::registerCmd("log", getTaskLog);
@@ -223,7 +243,7 @@ void setup() {
     Shell::registerCmd("help", helpMePlz);
 
     initUSB();
-    serialState = initSerial();
+    initSerial();
     initMSC();
 
 #ifdef PRO_FEATURES
@@ -260,5 +280,5 @@ void setup() {
 }
 
 void loop() {
-    
+
 }

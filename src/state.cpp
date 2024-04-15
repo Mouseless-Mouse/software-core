@@ -236,11 +236,7 @@ void TaskPrint::call(void (*if_monitoring)(void)) {
 }
 
 bool TaskPrint::enable(TaskHandle_t task) {
-    auto taskLog = taskMonitorRegistry.find(task);
-    if (taskLog == taskMonitorRegistry.end())
-        return false;
-    else
-        taskLog->second = true;
+    taskMonitorRegistry[task] = true;
     return true;
 }
 
