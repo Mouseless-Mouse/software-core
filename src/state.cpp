@@ -86,89 +86,72 @@ void Shell::serialCB() {
 
 
 
-static std::forward_list<Status*> statusRegistry;
+static std::unordered_map<TaskHandle_t, LogFile> taskLogRegistry;
 
-Status::Status(std::string name)
-    : name(name)
-    , errlog{}
-    , logTail(errlog.before_begin())
-    , hasError(false)
+size_t LogFile::write(uint8_t c) {
+    pLog += c;
+    return 1;
+}
+
+size_t LogFile::write(const uint8_t *buffer, size_t size) {
+    pLog.append((const char*)buffer, size);
+    return size;
+}
+
+const std::string& LogFile::get() {
+    return pLog;
+}
+
+LogFile& TaskLog() {
+    TaskHandle_t callingTask = xTaskGetCurrentTaskHandle();
+    return taskLogRegistry[callingTask];
+}
+
+LogFile& TaskLog(TaskHandle_t task) {
+    return taskLogRegistry[task];
+}
+
+
+
+std::unordered_map<TaskHandle_t, bool> TaskPrint::taskMonitorRegistry;
+
+TaskPrint::TaskPrint()
 {
-    statusRegistry.push_front(this);
-}
-
-Status::operator bool() const {
-    return !hasError;
-}
-
-void Status::logError(const char* errmsg) {
-    hasError = true;
-    errlog.insert_after(logTail, errmsg);
-    ++logTail;
-}
-
-const std::string& Status::getName() const {
-    return name;
-}
-
-bool Status::check(bool condition, const char* errmsg) {
-    if (!condition)
-        logError(errmsg);
-    return condition;
-}
-
-Status* Status::find(const char* searchName) {
-    for (Status* state : statusRegistry)
-        if (state->getName() == searchName)
-            return state;
-    return nullptr;
-}
-
-const std::forward_list<const char*>& Status::getLog() const {
-    return errlog;
-}
-
-
-
-std::unordered_map<TaskHandle_t, bool> TaskLog::taskLogRegistry;
-
-TaskLog::TaskLog()
-{
-    auto task = taskLogRegistry.find(xTaskGetCurrentTaskHandle());
-    if (task == taskLogRegistry.end()) {
-        taskLogRegistry.insert(std::pair<TaskHandle_t, bool>(xTaskGetCurrentTaskHandle(), false));
+    auto task = taskMonitorRegistry.find(xTaskGetCurrentTaskHandle());
+    if (task == taskMonitorRegistry.end()) {
+        taskMonitorRegistry.insert(std::pair<TaskHandle_t, bool>(xTaskGetCurrentTaskHandle(), false));
     }
     else if (task->second) {
         USBSerial.print("\e[2K\e[1G");
     }
 }
 
-TaskLog::~TaskLog() {
-    auto task = taskLogRegistry.find(xTaskGetCurrentTaskHandle());
-    if (task == taskLogRegistry.end()) {
-        taskLogRegistry.insert(std::pair<TaskHandle_t, bool>(xTaskGetCurrentTaskHandle(), false));
+TaskPrint::~TaskPrint() {
+    auto task = taskMonitorRegistry.find(xTaskGetCurrentTaskHandle());
+    if (task == taskMonitorRegistry.end()) {
+        taskMonitorRegistry.insert(std::pair<TaskHandle_t, bool>(xTaskGetCurrentTaskHandle(), false));
     }
     else if (task->second) {
         USBSerial.print(serialCmd);
     }
 }
 
-bool TaskLog::isEnabled() const {
-    auto taskLog = taskLogRegistry.find(xTaskGetCurrentTaskHandle());
-    if (taskLog == taskLogRegistry.end())
+bool TaskPrint::isEnabled() const {
+    auto taskLog = taskMonitorRegistry.find(xTaskGetCurrentTaskHandle());
+    if (taskLog == taskMonitorRegistry.end())
         return false;
     else
         return taskLog->second;
 }
 
-size_t TaskLog::write(const uint8_t c) {
-    if (taskLogRegistry.find(xTaskGetCurrentTaskHandle())->second)
+size_t TaskPrint::write(const uint8_t c) {
+    if (taskMonitorRegistry.find(xTaskGetCurrentTaskHandle())->second)
         return USBSerial.write(c);
     return 0;
 }
 
-size_t TaskLog::write(const uint8_t *buffer, size_t size) {
-    if (taskLogRegistry.find(xTaskGetCurrentTaskHandle())->second == false)
+size_t TaskPrint::write(const uint8_t *buffer, size_t size) {
+    if (taskMonitorRegistry.find(xTaskGetCurrentTaskHandle())->second == false)
         return 0;
     size_t n = 0;
     while (size--) {
@@ -178,32 +161,32 @@ size_t TaskLog::write(const uint8_t *buffer, size_t size) {
     return n;
 }
 
-void TaskLog::call(void (*if_monitoring)(void)) {
-    if (taskLogRegistry.find(xTaskGetCurrentTaskHandle())->second == false)
+void TaskPrint::call(void (*if_monitoring)(void)) {
+    if (taskMonitorRegistry.find(xTaskGetCurrentTaskHandle())->second == false)
         return;
     if_monitoring();
 }
 
-bool TaskLog::enable(TaskHandle_t task) {
-    auto taskLog = taskLogRegistry.find(task);
-    if (taskLog == taskLogRegistry.end())
+bool TaskPrint::enable(TaskHandle_t task) {
+    auto taskLog = taskMonitorRegistry.find(task);
+    if (taskLog == taskMonitorRegistry.end())
         return false;
     else
         taskLog->second = true;
     return true;
 }
 
-void TaskLog::disable(TaskHandle_t task) {
-    auto taskLog = taskLogRegistry.find(task);
-    if (taskLog == taskLogRegistry.end())
+void TaskPrint::disable(TaskHandle_t task) {
+    auto taskLog = taskMonitorRegistry.find(task);
+    if (taskLog == taskMonitorRegistry.end())
         return;
     else
         taskLog->second = false;
 }
 
-bool TaskLog::isEnabled(TaskHandle_t task) {
-    auto taskLog = taskLogRegistry.find(task);
-    if (taskLog == taskLogRegistry.end())
+bool TaskPrint::isEnabled(TaskHandle_t task) {
+    auto taskLog = taskMonitorRegistry.find(task);
+    if (taskLog == taskMonitorRegistry.end())
         return false;
     else
         return taskLog->second;
