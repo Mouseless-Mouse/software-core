@@ -2,10 +2,94 @@
 #include "usb_classes.h"
 #include "taskwrapper.h"
 
+#include <stack>
+
 #define CMD_BUF_SIZE 1024
 
 static char serialCmd[CMD_BUF_SIZE] = {0};
+static size_t cmdIdx = 0;
+static std::stack<bool (*)(char)> serialParserStack;
 static std::unordered_map<std::string, Shell::Command> cmdRegistry;
+
+void parseCmd(char *cmd);
+bool baseSerialParser(char c);
+
+bool escapeSeqParser(char c) {
+    static char second = '\0';
+    static std::string seq;
+    if (!second) {
+        second = c;
+        seq += c;
+    }
+    else
+        switch (second) {
+            case '[': {
+                seq += c;
+                if ('\x40' <= c && c > '\x00') {
+                    if (seq == "[D" && cmdIdx > 0) {
+                        --cmdIdx;
+                        USBSerial.print("\e[D");
+                    }
+                    else if (seq == "[C" && serialCmd[cmdIdx] != '\0') {
+                        ++cmdIdx;
+                        USBSerial.print("\e[C");
+                    }
+                    second = '\0';
+                    seq.clear();
+                    return false;
+                }
+            } break;
+            default: {
+                second = '\0';
+                seq.clear();
+                return false;
+            } break;
+        }
+    return true;
+}
+
+bool baseSerialParser(char c) {
+    if (c != '\r' && c != '\n' && c != '\b' && c != '\x7f' && c != '\e') {
+        size_t cursorPos = cmdIdx;
+        USBSerial.write(c);
+        while (serialCmd[cmdIdx])
+            ++cmdIdx;
+        do {
+            serialCmd[cmdIdx+1] = serialCmd[cmdIdx];
+        } while(cmdIdx-- > cursorPos);
+        cmdIdx = cursorPos;
+        serialCmd[cmdIdx++] = c;
+        USBSerial.printf("\e7%s\e8", &(serialCmd[cmdIdx]));
+    }
+    else if ((c == '\b' || c == '\x7f') && cmdIdx > 0) {
+        size_t cursorPos = --cmdIdx;
+        USBSerial.write(c);
+        do {
+            serialCmd[cmdIdx] = serialCmd[cmdIdx+1];
+        } while(serialCmd[++cmdIdx]);
+        cmdIdx = cursorPos;
+        USBSerial.printf(" \b\e7%s\e8", &(serialCmd[cmdIdx]));
+    }
+    else if (c == '\e') {
+        serialParserStack.push(escapeSeqParser);
+    }
+    else if (c == '\n') {
+        USBSerial.write(c);
+        if (serialCmd[0] != '\0') {
+            parseCmd(serialCmd);
+            while (serialParserStack.size() != 1)
+                serialParserStack.pop();
+            serialCmd[0] = '\0';
+            cmdIdx = 0;
+        }
+    }
+    return true;
+}
+
+void Shell::init() {
+    if (serialParserStack.empty())
+        serialParserStack.push(baseSerialParser);
+}
 
 void Shell::registerCmd(const char* name, Command cmd) {
     std::pair<std::string, Command> obj(name, cmd);
@@ -64,52 +148,36 @@ void parseCmd(char *cmd) {
 }
 
 void Shell::serialCB() {
-    static size_t i = 0;
     while (USBSerial.available()) {
         char c = USBSerial.read();
-        USBSerial.write(c);
-        if (c != '\r' && c != '\n' && c != '\b' && c != '\x7f') {
-            serialCmd[i++] = c;
-            serialCmd[i] = '\0';
-        }
-        else if ((c == '\b' || c == '\x7f') && i > 0) {
-            serialCmd[--i] = 0;
-            USBSerial.print(" \b");
-        }
-        else if (c == '\n' && i > 0) {
-            parseCmd(serialCmd);
-            serialCmd[0] = '\0';
-            i = 0;
-        }
+        if (!serialParserStack.top()(c))
+            serialParserStack.pop();
     }
 }
 
 
 
-static std::unordered_map<TaskHandle_t, LogFile> taskLogRegistry;
+std::unordered_map<TaskHandle_t, std::string> TaskLog::taskLogRegistry;
 
-size_t LogFile::write(uint8_t c) {
-    pLog += c;
+size_t TaskLog::write(uint8_t c) {
+    taskLogRegistry[task] += c;
     return 1;
 }
 
-size_t LogFile::write(const uint8_t *buffer, size_t size) {
-    pLog.append((const char*)buffer, size);
+size_t TaskLog::write(const uint8_t *buffer, size_t size) {
+    taskLogRegistry[task].append((const char*)buffer, size);
     return size;
 }
 
-const std::string& LogFile::get() {
-    return pLog;
-}
-
-LogFile& TaskLog() {
-    TaskHandle_t callingTask = xTaskGetCurrentTaskHandle();
-    return taskLogRegistry[callingTask];
-}
-
-LogFile& TaskLog(TaskHandle_t task) {
+const std::string& TaskLog::get() {
     return taskLogRegistry[task];
 }
+
+TaskLog::TaskLog() : task(xTaskGetCurrentTaskHandle())
+{}
+
+TaskLog::TaskLog(TaskHandle_t task) : task(task)
+{}
 
 
 
@@ -122,7 +190,7 @@ TaskPrint::TaskPrint()
         taskMonitorRegistry.insert(std::pair<TaskHandle_t, bool>(xTaskGetCurrentTaskHandle(), false));
     }
     else if (task->second) {
-        USBSerial.print("\e[2K\e[1G");
+        USBSerial.print("\e7\e[2K\e[1G");
     }
 }
 
@@ -132,7 +200,7 @@ TaskPrint::~TaskPrint() {
         taskMonitorRegistry.insert(std::pair<TaskHandle_t, bool>(xTaskGetCurrentTaskHandle(), false));
     }
     else if (task->second) {
-        USBSerial.print(serialCmd);
+        USBSerial.printf("%s\e8", serialCmd);
     }
 }
 

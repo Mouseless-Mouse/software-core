@@ -83,7 +83,7 @@ auto imuTask = Task(
     const TickType_t delayTime = pdMS_TO_TICKS(1000 / freq);
     Orientation cur;
     if (!BNO086::init()) {
-        TaskLog().println("Failed to initialize BNO086");
+        Error<TaskLog>().println("Failed to initialize BNO086");
         return;
     }
     uint32_t t = 0;
@@ -139,14 +139,14 @@ void treeList(File &dir, int level = 0) {
   }
 }
 
-void getStatus(std::vector<const char*>& args) {
+void getTaskLog(std::vector<const char*>& args) {
     if (args.size() != 1) {
         USBSerial.println("Expected 1 argument");
         return;
     }
     const char *target = args.front();
-    if (strnlen(target, 17) > 16) {
-        USBSerial.printf("Error: Maximum task name length is %i characters\n", configMAX_TASK_NAME_LEN);
+    if (strnlen(target, 16) > 15) {
+        USBSerial.printf("Error: Maximum task name length is %i characters\n", configMAX_TASK_NAME_LEN - 1);
         return;
     }
     TaskHandle_t status = xTaskGetHandle(target);
@@ -164,8 +164,8 @@ void toggleMonitor(std::vector<const char*>& args) {
         return;
     }
     const char *target = args.front();
-    if (strnlen(target, 17) > 16) {
-        USBSerial.printf("Error: Maximum task name length is %i characters\n", configMAX_TASK_NAME_LEN);
+    if (strnlen(target, 16) > 15) {
+        USBSerial.printf("Error: Maximum task name length is %i characters\n", configMAX_TASK_NAME_LEN - 1);
         return;
     }
     TaskHandle_t monitorTask = xTaskGetHandle(target);
@@ -218,10 +218,12 @@ void setup() {
                             "Mouseless World!</h1>And hello to you, too!</body>"));
   renderer.set_dom(dom);
 
-  Shell::registerCmd("status", getStatus);
-  Shell::registerCmd("monitor", toggleMonitor);
-  Shell::registerCmd("memory", systemStatus);
-  Shell::registerCmd("help", helpMePlz);
+    Shell::init();
+
+    Shell::registerCmd("log", getTaskLog);
+    Shell::registerCmd("monitor", toggleMonitor);
+    Shell::registerCmd("memory", systemStatus);
+    Shell::registerCmd("help", helpMePlz);
 
   initUSB();
   serialState = initSerial();
