@@ -7,10 +7,10 @@
 #include "usb_classes.h"
 #include <Arduino.h>
 
-#define STATUS_BAR_HEIGHT 20               // Pixels
-#define ACCENT_COLOR 0b0000011111000000    // 5-6-5 Color (bright green)
-#define SECONDARY_COLOR 0b0000001111100000 // 5-6-5 Color (muted green)
-#define TEXT_COLOR 0b1111111111111111      // 5-6-5 Color (white)
+#define STATUS_BAR_HEIGHT 20                    // Pixels
+#define ACCENT_COLOR color_rgb(0, 251, 0)       // 5-6-5 Color (bright green)
+#define SECONDARY_COLOR color_rgb(0, 127, 0)    // 5-6-5 Color (muted green)
+#define TEXT_COLOR color_rgb(255, 255, 255)     // 5-6-5 Color (white)
 
 namespace threeml {
 class Renderer {

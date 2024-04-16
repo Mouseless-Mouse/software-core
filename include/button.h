@@ -2,27 +2,10 @@
 
 #include <Arduino.h>
 
+#include "virtual_callback.h"
+
 #define DEBOUNCE_DURATION pdMS_TO_TICKS(10)
 #define LONG_PRESS_DURATION pdMS_TO_TICKS(500)
-
-class BaseCallback {
-public:
-    virtual void invoke() = 0;
-};
-
-template <typename F>
-class Callback : public BaseCallback {
-    F callbackFunc;
-
-public:
-    Callback(F&& callbackFunc)
-        : BaseCallback()
-        , callbackFunc{std::forward<F>(callbackFunc)}
-    {}
-    void invoke() {
-        callbackFunc();
-    }
-};
 
 /// @brief Represents a physical (mechanical) button connected to a GPIO pin; performs debouncing.
 class Button {

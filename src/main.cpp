@@ -12,6 +12,7 @@
 #include "touch.h"
 #include "usb_classes.h"
 #include "button.h"
+#include "unit_testing.h"
 
 extern "C" {
 #include "duktape.h"
@@ -41,8 +42,16 @@ threeml::Renderer renderer(&display, nullptr);
 
 auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     uint32_t t = 0;
+
+    display.init();
+    display.setTextWrap(false);
+
+    display.setTextColor(color_rgb(255, 255, 255));
+    display.setTextSize(2);
+
     TickType_t wakeTime = xTaskGetTickCount();
 
+    size_t runningBehind = 0;
     while (1) {
         renderer.render();
         // while (!display.done_refreshing());
@@ -58,7 +67,11 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
 
         // display.refresh();
 
-        vTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17));
+        if (xTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17)) == pdFALSE) {
+            ++runningBehind;
+            if (runningBehind == 10)
+                Warn<TaskLog>().println("Draw task is running behind!");
+        }
     }
 });
 
@@ -67,6 +80,10 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
 // Basic version `draw` controls LED_BUILTIN
 auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     static uint32_t t = 0;
+
+    ledcSetup(BASIC_LEDC_CHANNEL, 1000, 8);
+    ledcAttachPin(LED_BUILTIN, BASIC_LEDC_CHANNEL);
+
     while (1) {
         ledcWrite(BASIC_LEDC_CHANNEL, 128 + 127 * sin(t / 120.f * 2 * PI));
         ++t;
@@ -126,6 +143,17 @@ auto displayDimTest = Task("Display Dimmer", 3000, 1, +[]() {
         
         vTaskDelay(pdMS_TO_TICKS(2));
     }
+});
+
+auto deferredPrinter = Task("Shell Greeter", 3000, 1, +[](){
+    while (!USBSerial) vTaskDelay(pdMS_TO_TICKS(100));
+    USBSerial.print("\e[2J\e[1;1H"
+        "|\\  /|           _  _  |  _   _  _    |\\  /|           _  _\n"
+        "| \\/ | /\"\\ |  | /_ /_| | /_| /_ /_    | \\/ | /\"\\ |  | /_ /_|\n"
+        "|    | \\_/ \\_/| _/ \\_  | \\_  _/ _/    |    | \\_/ \\_/| _/ \\_\n\n"
+        "Welcome to the Mouseless Debug Terminal! Type 'help' for a list of available commands.\n\n"
+        "\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ "
+    );
 });
 
 void treeList(File &dir, int level = 0) {
@@ -204,8 +232,32 @@ void systemStatus(std::vector<const char *> &args) {
         USBSerial.println("Expected no arguments");
         return;
     }
-    USBSerial.printf("Free heap: %i\n", xPortGetFreeHeapSize());
+    USBSerial.printf("Total free heap: %i\n", xPortGetFreeHeapSize());
     USBSerial.printf("Minimum free heap reached: %i\n", esp_get_minimum_free_heap_size());
+    USBSerial.printf("Free internal heap: %i\n", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    USBSerial.printf("Minium free internal heap reached: %i\n", heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+    USBSerial.printf("Largest free internal heap block: %i\n", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    USBSerial.printf("Free SPIRAM heam: %i\n", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    USBSerial.printf("Minium free SPIRAM heap reached: %i\n", heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
+    USBSerial.printf("Largest free SPIRAM heap block: %i\n", heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+}
+
+void treeCmd(std::vector<const char *> &args) {
+    if (args.empty()) {
+        File root = FFat.open("/");
+        treeList(root);
+        return;
+    }
+    else if (args.size() > 1) {
+        USBSerial.println("Too many arguments");
+        return;
+    }
+    File target = FFat.open(args.front());
+    if (!target) {
+        USBSerial.printf("Could not open directory '%s'\n", args.front());
+        return;
+    }
+    treeList(target);
 }
 
 void helpMePlz(std::vector<const char *> &args) {
@@ -218,15 +270,6 @@ void helpMePlz(std::vector<const char *> &args) {
 }
 
 void setup() {
-    // Serial.begin(115200);
-
-#ifdef DEBUG
-    // while(!Serial) delay(10); // Wait for Serial to become available.
-    // Necessary for boards with native USB (like the SAMD51 Thing+).
-    // For a final version of a project that does not need serial debug (or a USB
-    // cable plugged in), Comment out this while loop, or it will prevent the
-    // remaining code from running.
-#endif
 
     auto dom = threeml::clean_dom(
         threeml::parse_string("<head><title>Test</title></head><body><h1>Hello, "
@@ -236,12 +279,9 @@ void setup() {
     downButton
     .on(Button::Event::PRESS, [](){
         TaskPrint().println("Boop!");
-        displayDimTest();
     })
     .on(Button::Event::RELEASE, [](){
         TaskPrint().println("Un-Boop!");
-        if (displayDimTest.isRunning)
-            displayDimTest.stop();
     })
     .on(Button::Event::CLICK, [](){
         TaskPrint().println("Short Boop");
@@ -252,50 +292,64 @@ void setup() {
 
     downButton.attach();
 
+    /*
+        Unit testing block - Please place unit tests here until someone comes up with a better place for them
+    */
+
+    UnitTest::add("js", [](){
+        duk = duk_create_heap_default();
+        duk_push_c_function(duk, native_print, 1);
+        duk_put_global_string(duk, "print");
+        duk_eval_string(duk,
+            "var fib = function(n) {"
+                "return n < 2 ? n : fib(n-2) + fib(n-1)"
+            "};"
+            "print(fib(6));"
+        );
+        USBSerial.println((int)duk_get_int(duk, -1));
+        duk_destroy_heap(duk);
+    });
+
+    UnitTest::add("backlight", []() {
+        if (displayDimTest.isRunning)
+            displayDimTest.stop();
+        else
+            displayDimTest();
+    });
+
+    /*
+        End of unit testing block
+    */
+
     Shell::init();
+
+    Shell::onConnect([](){
+        if (!deferredPrinter.isRunning)
+            deferredPrinter();
+    });
 
     Shell::registerCmd("log", getTaskLog);
     Shell::registerCmd("monitor", toggleMonitor);
     Shell::registerCmd("memory", systemStatus);
+    Shell::registerCmd("test", UnitTest::run);
     Shell::registerCmd("help", helpMePlz);
 
     initUSB();
     initSerial();
     initMSC();
 
-#ifdef PRO_FEATURES
-    display.init();
-    display.setTextWrap(false);
-
-    display.setTextColor(color_rgb(255, 255, 255));
-    display.setTextSize(2);
-#else
-    ledcSetup(BASIC_LEDC_CHANNEL, 1000, 8);
-    ledcAttachPin(LED_BUILTIN, BASIC_LEDC_CHANNEL);
-#endif
-    drawTask();
-
-    while (!USBSerial);
-    duk = duk_create_heap_default();
-    duk_push_c_function(duk, native_print, 1);
-    duk_put_global_string(duk, "print");
-    duk_eval_string(duk, "var fib = function(n){return n < 2 ? n : fib(n-2) + "
-                         "fib(n-1)}; print(fib(6));");
-    USBSerial.println((int)duk_get_int(duk, -1));
-    duk_destroy_heap(duk);
-
     if (FFat.begin(false)) {
-        File root = FFat.open("/");
-        treeList(root);
+        Shell::registerCmd("tree", treeCmd);
     }
     else {
         USBSerial.println("Failed to initialize filesystem");
     }
-    
+
+    drawTask();
     touchTask();
     imuTask(10);
 }
 
 void loop() {
-
+    vTaskDelay(portMAX_DELAY);
 }
