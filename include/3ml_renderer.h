@@ -23,6 +23,11 @@ class Renderer {
         std::size_t top;
         std::size_t bottom;
         selectable_node_t(DOMNode *node) : node(node), top(0), bottom(0) {}
+
+        bool is_visible(std::size_t scroll_height, std::size_t display_height) {
+            return top >= scroll_height &&
+                   bottom <= scroll_height + display_height;
+        }
     };
 
     TFT_Parallel *m_display;
@@ -30,9 +35,21 @@ class Renderer {
     std::size_t m_scroll_height;
     std::vector<selectable_node_t> m_selectable_nodes;
     std::size_t m_current_selected;
+    long m_scroll_to; // signed to allow for simpler clamping code
     Button m_up_button;
     Button m_down_button;
-    bool has_rendered_dom;
+    bool m_dom_rendered;
+    std::size_t m_total_height;
+
+    void clamp_scroll_to() {
+        if (m_scroll_to < 0) {
+            m_scroll_to = 0;
+        } else if (m_scroll_to >
+                   m_total_height - m_display->height() + STATUS_BAR_HEIGHT) {
+            m_scroll_to =
+                m_total_height - m_display->height() + STATUS_BAR_HEIGHT;
+        }
+    }
 
     void explore_dom(DOMNode *root) {
         if (root == nullptr) {
@@ -56,16 +73,34 @@ class Renderer {
     void select_next() {
         if (m_selectable_nodes.empty() ||
             m_current_selected >= m_selectable_nodes.size() - 1) {
+            m_scroll_to += 40;
+            clamp_scroll_to();
             return;
         }
         m_current_selected++;
+        auto node = m_selectable_nodes[m_current_selected];
+        if (node.is_visible(m_scroll_height,
+                            m_display->height() - STATUS_BAR_HEIGHT)) {
+            return;
+        } else {
+            m_scroll_to = node.top;
+            clamp_scroll_to();
+        }
     }
 
     void select_prev() {
         if (m_selectable_nodes.empty() || m_current_selected == 0) {
+            m_scroll_to -= 40;
+            clamp_scroll_to();
             return;
         }
         m_current_selected--;
+        if (m_selectable_nodes[m_current_selected].is_visible(
+                m_scroll_height, m_display->height() - STATUS_BAR_HEIGHT)) {
+            return;
+        } else {
+            m_scroll_to = m_selectable_nodes[m_current_selected].top;
+        }
     }
 
     void draw_status_bar() {
@@ -74,10 +109,9 @@ class Renderer {
         m_display->setTextColor(TEXT_COLOR, ACCENT_COLOR);
         m_display->setTextSize(2); // 12x16 pixels
         m_display->setCursor(2, 2);
-        // m_display->print("Battery: ");
-        // m_display->print(battery::get_level());
-        // m_display->print("%");
-        m_display->print(m_selectable_nodes[m_current_selected].bottom);
+        m_display->print("Battery: ");
+        m_display->print(battery::get_level());
+        m_display->print("%");
     }
 
     void render_plaintext(const std::vector<std::string> &plaintext_data,
@@ -133,7 +167,7 @@ class Renderer {
                      int &last_selectable_node) {
         auto bottom_of_display =
             m_scroll_height + m_display->height() - STATUS_BAR_HEIGHT;
-        if (has_rendered_dom && lowest_scroll_height > bottom_of_display) {
+        if (m_dom_rendered && lowest_scroll_height > bottom_of_display) {
             return;
         }
 
@@ -168,7 +202,7 @@ class Renderer {
     Renderer(TFT_Parallel *display, DOM *dom)
         : m_display(display), m_dom(dom), m_scroll_height(0),
           m_current_selected(0), m_up_button(0), m_down_button(14),
-          has_rendered_dom(false) {
+          m_dom_rendered(false) {
         if (dom == nullptr) {
             return;
         }
@@ -201,23 +235,19 @@ class Renderer {
             return;
         }
 
-        if (has_rendered_dom) {
-            if (m_scroll_height > m_selectable_nodes[m_current_selected].top) {
-                m_scroll_height = m_selectable_nodes[m_current_selected].top;
-            } else if (m_scroll_height + m_display->height() -
-                           STATUS_BAR_HEIGHT <
-                       m_selectable_nodes[m_current_selected].bottom) {
-                m_scroll_height =
-                    m_selectable_nodes[m_current_selected].bottom -
-                    m_display->height() + STATUS_BAR_HEIGHT;
-            }
+        if (m_dom_rendered) {
+            clamp_scroll_to();
+            m_scroll_height = (m_scroll_height * 3 + m_scroll_to) / 4;
         }
         std::size_t lowest_scroll_height = 0;
         int last_selectable_node = -1;
         for (const auto node : m_dom->top_level_nodes) {
             render_node(node, lowest_scroll_height, last_selectable_node);
         }
-        has_rendered_dom = true;
+        m_total_height = (lowest_scroll_height > m_total_height)
+                             ? lowest_scroll_height
+                             : m_total_height;
+        m_dom_rendered = true;
         draw_status_bar();
 
         m_display->refresh();
@@ -225,7 +255,8 @@ class Renderer {
 
     void set_dom(DOM *dom) {
         m_dom = dom;
-        has_rendered_dom = false;
+        m_dom_rendered = false;
+        m_total_height = 0;
         refresh_selectable_nodes();
     }
 };
