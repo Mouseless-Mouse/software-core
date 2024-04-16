@@ -66,4 +66,8 @@ public:
         callbacks[(size_t)e] = new Callback<F>(std::forward<F>(callbackFn));
         return *this;
     }
+
+    /// @brief Gets whether the button is presed.
+    /// @return Whether the button is pressed.
+    bool isPressed() const;
 };

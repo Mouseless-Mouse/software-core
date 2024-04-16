@@ -51,25 +51,24 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
 
     size_t runningBehind = 0;
     while (1) {
-        // TickType_t start = xTaskGetTickCount();
-
-        renderer.render();
         // while (!display.done_refreshing());
-        // display.clear();
+        { auto _p = Profile(display);
 
-        // // Draw code goes between `display.clear()` and `display.refresh()`
-        // display.setCursor(10, 10);
-        // display.print("Hello, Mouseless World!");
-        // display.setCursor(10, 40);
-        // display.printf("Frame %i", ++t);
-        // display.setCursor(10, 70);
-        // display.printf("USB %s", usbMounted ? "Connected" : "Disconnected");
+            renderer.render();
+            // display.clear();
 
-        // display.refresh();
+            // // Draw code goes between `display.clear()` and `display.refresh()`
+            // display.setCursor(10, 10);
+            // display.print("Hello, Mouseless World!");
+            // display.setCursor(10, 40);
+            // display.printf("Frame %i", ++t);
+            // display.setCursor(10, 70);
+            // display.printf("USB %s", usbMounted ? "Connected" : "Disconnected");
 
-        // TickType_t finish = xTaskGetTickCount();
-        // display.setCursor(10, 100);
-        // display.print(finish - start);
+            // display.refresh();
+
+            display.setCursor(10, 100);
+        }
 
         if (xTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17)) == pdFALSE) {
             ++runningBehind;
