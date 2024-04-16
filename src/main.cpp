@@ -53,6 +53,8 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
 
     size_t runningBehind = 0;
     while (1) {
+        // TickType_t start = xTaskGetTickCount();
+
         renderer.render();
         // while (!display.done_refreshing());
         // display.clear();
@@ -66,6 +68,10 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
         // display.printf("USB %s", usbMounted ? "Connected" : "Disconnected");
 
         // display.refresh();
+
+        // TickType_t finish = xTaskGetTickCount();
+        // display.setCursor(10, 100);
+        // display.print(finish - start);
 
         if (xTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17)) == pdFALSE) {
             ++runningBehind;
