@@ -87,8 +87,25 @@ void TFT_Parallel::init() {
 }
 
 void TFT_Parallel::drawPixel(int16_t x, int16_t y, uint16_t color) {
-    if (x >= 0 && x < EXAMPLE_LCD_H_RES && y >= 0 && y < EXAMPLE_LCD_V_RES)
-        buffer[x + y*EXAMPLE_LCD_H_RES] = color;
+    if (x >= 0 && x < _width && y >= 0 && y < _height)
+        buffer[x + y*_width] = color;
+}
+
+void TFT_Parallel::writeFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) {
+    if (y >= _height || y < 0 || w == 0)
+        return;
+    if (w < 0) {
+        x += w;
+        w = -w;
+    }
+    int16_t end = max((int16_t)0, (int16_t)(x + w));
+    for (int16_t start = max((int16_t)0, x); start < end; ++start)
+        buffer[start + y*_width] = color;
+}
+
+void TFT_Parallel::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+    for (int16_t i = y; i < y + h; ++i)
+        writeFastHLine(x, i, w, color);
 }
 
 void TFT_Parallel::clear() {

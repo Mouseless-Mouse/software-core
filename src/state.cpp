@@ -100,8 +100,9 @@ const std::unordered_map<std::string, Shell::Command>& Shell::registry() {
     return cmdRegistry;
 }
 
-auto eval = Task("Shell Evaluator", 5000, 1, +[](decltype(std::bind(std::declval<Shell::Command>(), std::declval<std::vector<const char*>&>())) boundCmd){
+auto eval = Task("Shell Evaluator", 10000, 1, +[](decltype(std::bind(std::declval<Shell::Command>(), std::declval<std::vector<const char*>&>())) boundCmd){
     boundCmd();
+    USBSerial.print("\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ ");
 });
 
 void parseCmd(char *cmd) {
@@ -141,19 +142,29 @@ void parseCmd(char *cmd) {
 
     // Lookup and execute the command
     auto cmdEntry = cmdRegistry.find(name);
-    if (cmdEntry != cmdRegistry.end())
-        eval(std::bind(cmdEntry->second, args));
+    if (cmdEntry != cmdRegistry.end()) {
+        if(!eval(std::bind(cmdEntry->second, args))) {
+            USBSerial.println("\e[31mCould not launch Shell Evaluator\e[0m");
+        }
+    }
+    else if (name == "^C") {
+        eval.stop();
+        if (!eval.isRunning)
+            USBSerial.print("\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ ");
+    }
     else
-        USBSerial.printf("Unrecognized commmand '%s'\n", name.c_str());
+        USBSerial.printf("Unrecognized commmand '%s'\n\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ ", name.c_str());
 }
 
-void Shell::serialCB() {
+void Shell::serialDataCB() {
     while (USBSerial.available()) {
         char c = USBSerial.read();
         if (!serialParserStack.top()(c))
             serialParserStack.pop();
     }
 }
+
+BaseCallback *Shell::serialConnectCB = nullptr;
 
 
 
@@ -200,7 +211,7 @@ TaskPrint::~TaskPrint() {
         taskMonitorRegistry.insert(std::pair<TaskHandle_t, bool>(xTaskGetCurrentTaskHandle(), false));
     }
     else if (task->second) {
-        USBSerial.printf("%s\e8", serialCmd);
+        USBSerial.printf("\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ %s\e8", serialCmd);
     }
 }
 

@@ -46,19 +46,15 @@ class MyCDCCallbacks : public CDCCallbacks {
 
     bool onConnect(bool dtr, bool rts)
     {
-        // if (dtr && rts) {
-        //     USBSerial.persistentReset(RESTART_BOOTLOADER);
-        //     esp_restart();
-        // }
-            
-        // USBSerial.printf("connection state changed, dtr: %d, rts: %d\n", dtr, rts);
+        if (Shell::serialConnectCB)
+            Shell::serialConnectCB->invoke();
         return true;  // allow to persist reset, when Arduino IDE is trying to enter bootloader mode
     }
 
     void onData()
     {
         // Serial.printf("\nnew data, len %d\n", len);
-        Shell::serialCB();
+        Shell::serialDataCB();
     }
 
     void onWantedChar(char c)

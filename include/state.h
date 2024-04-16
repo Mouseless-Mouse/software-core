@@ -5,13 +5,18 @@
 #include <unordered_map>
 #include <vector>
 
+#include "virtual_callback.h"
+
 namespace Shell {
 
 typedef void (*Command)(std::vector<const char*>&);
 
 void init();
 
-void serialCB();
+void serialDataCB();
+extern BaseCallback *serialConnectCB;
+template <typename F>
+void onConnect(F&& invocable) { serialConnectCB = new Callback<F>(std::forward<F>(invocable)); }
 
 void registerCmd(const char* name, Command cmd);
 
