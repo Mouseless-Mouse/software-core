@@ -91,3 +91,7 @@ bool Button::poll(const TickType_t callTime, const bool inISR) {
         portYIELD_FROM_ISR();
     return true;
 }
+
+bool Button::isPressed() const {
+    return state;
+}
