@@ -74,6 +74,7 @@ struct TaskContainer {
             handle = nullptr;
             isRunning = false;
             delete params;
+            params = nullptr;
         }
     }
 };

@@ -114,6 +114,20 @@ auto touchTask = Task("Touch Reporting", 4000, 1, +[]() {
     }
 });
 
+auto displayDimTest = Task("Display Dimmer", 3000, 1, +[]() {
+    static uint8_t brightness = 255;
+    static int8_t dir = -1;
+
+    while (1) {
+        brightness += dir;
+        display.set_backlight(brightness);
+        if (brightness == 255 || brightness == 32)
+            dir *= -1;
+        
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+});
+
 void treeList(File &dir, int level = 0) {
     if (!dir || !dir.isDirectory()) {
         USBSerial.println("treeList called on non-directory");
@@ -222,16 +236,17 @@ void setup() {
     downButton
     .on(Button::Event::PRESS, [](){
         TaskPrint().println("Boop!");
+        displayDimTest();
     })
     .on(Button::Event::RELEASE, [](){
         TaskPrint().println("Un-Boop!");
+        if (displayDimTest.isRunning)
+            displayDimTest.stop();
     })
     .on(Button::Event::CLICK, [](){
-        display.set_backlight(255);
         TaskPrint().println("Short Boop");
     })
     .on(Button::Event::HOLD, [](){
-        display.set_backlight(50);
         TaskPrint().println("Long Boop");
     });
 

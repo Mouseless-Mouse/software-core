@@ -1,7 +1,5 @@
 #include "button.h"
 
-#include "usb_classes.h"
-
 Button::Button(int pin)
     : pin(pin)
     , state(false)
@@ -36,10 +34,10 @@ void Button::DebounceCB(TimerHandle_t timer) {
     Button *button = static_cast<Button*>(pvTimerGetTimerID(timer));
     const TickType_t cbTime = xTaskGetTickCount();
 
-    if (!digitalRead(button->pin) != button->state) {
-        button->poll(cbTime, false);
-        xTimerReset(timer, 0);  // This will be called from the timer task, so blocking until the timer queue is not full is very bad
-    }
+    // Debounce again after another interval of DEBOUNCE_DURATION ticks if the button state has changed since the last poll
+    // Otherwise, consider the pin state stable and reattach the ISR
+    if (button->poll(cbTime, false))
+        xTimerReset(timer, 0);  // The timer task invokes `DebounceCB`, so blocking the timer task until the timer queue is not full would be very bad
     else
         attachInterruptArg(button->pin, ISR, button, CHANGE);
 }
