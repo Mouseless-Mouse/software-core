@@ -23,8 +23,6 @@ BleMouse mouse("Mouseless Mouse " __TIME__, "The Mouseless Gang", 69U);
 
 Global<bool> mouseInitialized(false);
 
-Button downButton(14);
-
 duk_context *duk;
 static duk_ret_t native_print(duk_context *ctx) {
   USBSerial.println(duk_to_string(ctx, 0));
@@ -214,28 +212,34 @@ void setup() {
     // remaining code from running.
 #endif
 
-    auto dom = threeml::clean_dom(
-        threeml::parse_string("<head><title>Test</title></head><body><h1>Hello, "
-                              "Mouseless World!</h1>And hello to you, too!</body>"));
+    auto dom = threeml::clean_dom(threeml::parse_string(
+        "<head><title>Test</title></head><body><h1>Hello, "
+        "Mouseless World!</h1>And hello to you, too!"
+        "<a href=\"yourmom.3ml\">This is a link!</a>"
+        "<a href=\"nowhere.3ml\">This is a link, too!</a>"
+        "<h1>Here's some more filler text! Lorem ipsum dolor sit amet.</h1>"
+        "<a href=\"gnome_ann.3ml\">Here is the third link!</a>"
+        "</body>"));
+    renderer.init();
     renderer.set_dom(dom);
 
-    downButton
-    .on(Button::Event::PRESS, [](){
-        TaskPrint().println("Boop!");
-    })
-    .on(Button::Event::RELEASE, [](){
-        TaskPrint().println("Un-Boop!");
-    })
-    .on(Button::Event::CLICK, [](){
-        display.set_backlight(255);
-        TaskPrint().println("Short Boop");
-    })
-    .on(Button::Event::HOLD, [](){
-        display.set_backlight(50);
-        TaskPrint().println("Long Boop");
-    });
+    // downButton
+    // .on(Button::Event::PRESS, [](){
+    //     TaskPrint().println("Boop!");
+    // })
+    // .on(Button::Event::RELEASE, [](){
+    //     TaskPrint().println("Un-Boop!");
+    // })
+    // .on(Button::Event::CLICK, [](){
+    //     display.set_backlight(255);
+    //     TaskPrint().println("Short Boop");
+    // })
+    // .on(Button::Event::HOLD, [](){
+    //     display.set_backlight(50);
+    //     TaskPrint().println("Long Boop");
+    // });
 
-    downButton.attach();
+    // downButton.attach();
 
     Shell::init();
 
