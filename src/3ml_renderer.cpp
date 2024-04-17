@@ -99,6 +99,15 @@ void threeml::Renderer::interact() {
     }
 }
 
+void threeml::Renderer::go_back() {
+    if (m_file_stack.size() < 2) {
+        return;
+    }
+    m_file_stack.pop();
+    TaskLog().printf("Going back to %s\n", m_file_stack.top().c_str());
+    load_file(m_file_stack.top().c_str(), false);
+}
+
 void threeml::Renderer::draw_status_bar() {
     m_display->fillRect(0, 0, m_display->width(), STATUS_BAR_HEIGHT,
                         ACCENT_COLOR);
@@ -196,6 +205,7 @@ bool threeml::Renderer::init() {
     m_up_button.on(Button::Event::CLICK, [this]() { select_prev(); });
     m_down_button.on(Button::Event::CLICK, [this]() { select_next(); });
     m_down_button.on(Button::Event::HOLD, [this]() { interact(); });
+    m_up_button.on(Button::Event::HOLD, [this]() { go_back(); });
     m_up_button.attach();
     m_down_button.attach();
     if (!FFat.begin(true)) {
@@ -239,7 +249,7 @@ void threeml::Renderer::render() {
     m_display->refresh();
 }
 
-bool threeml::Renderer::load_file(const char *path) {
+bool threeml::Renderer::load_file(const char *path, bool add_to_stack) {
     fs::File f = FFat.open(path);
     if (!f) {
         return false;
@@ -250,6 +260,9 @@ bool threeml::Renderer::load_file(const char *path) {
     f.close();
     auto tmp = m_dom;
     load_dom(threeml::clean_dom(threeml::parse_string(buffer)));
+    if (add_to_stack) {
+        m_file_stack.push(path);
+    }
     delete[] buffer;
     delete tmp;
     return true;

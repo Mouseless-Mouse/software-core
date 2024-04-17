@@ -7,6 +7,7 @@
 #include "state.h"
 #include "usb_classes.h"
 #include <Arduino.h>
+#include <stack>
 
 #define STATUS_BAR_HEIGHT 20 // Pixels
 #define ACCENT_COLOR color_rgb(247, 176, 91)
@@ -41,6 +42,7 @@ class Renderer {
     Button m_down_button;
     bool m_dom_rendered;
     bool m_initialized;
+    std::stack<std::string> m_file_stack;
     std::size_t m_total_height;
     std::string m_title;
 
@@ -65,6 +67,8 @@ class Renderer {
 
     /// @brief Interacts with the currently selected node, if there is one.
     void interact();
+
+    void go_back();
 
     /// @brief Renders the status bar on the screen. Status bar is always at the
     /// top, is STATUS_BAR_HEIGHT pixels tall, and its background is
@@ -134,8 +138,10 @@ class Renderer {
     /// @brief Loads a 3ML file into the renderer. Clears and frees
     /// the old DOM if loading the new file was successful.
     /// @param path The path to the file to load.
+    /// @param add_to_stack A boolean indicating if the file should be added to
+    /// the file stack. Defaults to true.
     /// @return A boolean indicating if loading the file was successful.
-    bool load_file(const char *path);
+    bool load_file(const char *path, bool add_to_stack = true);
 
     /// @brief Loads a new DOM into the renderer, clearing the old one. Does not
     /// free the old DOM, in case this method is used to reload the DOM after
