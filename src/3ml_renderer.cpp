@@ -14,7 +14,8 @@ bool threeml::Renderer::selectable_node_t::is_visible(
 }
 
 void threeml::Renderer::clamp_scroll_target() {
-    if (m_scroll_target < 0) {
+    if (m_scroll_target < 0 ||
+        m_total_height <= m_display->height() - STATUS_BAR_HEIGHT) {
         m_scroll_target = 0;
     } else if (m_scroll_target >
                m_total_height - m_display->height() + STATUS_BAR_HEIGHT) {
@@ -86,15 +87,25 @@ void threeml::Renderer::select_prev() {
     }
 }
 
+void threeml::Renderer::interact() {
+    if (m_selectable_nodes.empty()) {
+        return;
+    }
+    auto node = m_selectable_nodes[m_current_selected].node;
+    switch (node->type) {
+    case threeml::NodeType::A:
+        load_file(node->unique_attributes["href"].c_str());
+        break;
+    }
+}
+
 void threeml::Renderer::draw_status_bar() {
     m_display->fillRect(0, 0, m_display->width(), STATUS_BAR_HEIGHT,
                         ACCENT_COLOR);
     m_display->setTextColor(TEXT_COLOR, ACCENT_COLOR);
     m_display->setTextSize(2); // 12x16 pixels
     m_display->setCursor(2, 2);
-    m_display->print("Battery: ");
-    m_display->print(battery::get_level());
-    m_display->print("%");
+    m_display->print(m_title.c_str());
 }
 
 void threeml::Renderer::render_plaintext(
@@ -184,6 +195,7 @@ bool threeml::Renderer::init() {
     }
     m_up_button.on(Button::Event::CLICK, [this]() { select_prev(); });
     m_down_button.on(Button::Event::CLICK, [this]() { select_next(); });
+    m_down_button.on(Button::Event::HOLD, [this]() { interact(); });
     m_up_button.attach();
     m_down_button.attach();
     if (!FFat.begin(true)) {
@@ -236,7 +248,10 @@ bool threeml::Renderer::load_file(const char *path) {
     f.readBytes(buffer, f.size());
     buffer[f.size()] = '\0';
     f.close();
+    auto tmp = m_dom;
     load_dom(threeml::clean_dom(threeml::parse_string(buffer)));
+    delete[] buffer;
+    delete tmp;
     return true;
 }
 
@@ -245,4 +260,15 @@ void threeml::Renderer::load_dom(threeml::DOM *dom) {
     m_dom_rendered = false;
     m_total_height = 0;
     refresh_selectable_nodes();
+    for (const auto node : m_dom->top_level_nodes) {
+        if (node->type != threeml::NodeType::HEAD) {
+            continue;
+        }
+        for (const auto child : node->children) {
+            if (child->type != threeml::NodeType::TITLE) {
+                continue;
+            }
+            m_title = child->children.front()->plaintext_data.front();
+        }
+    }
 }

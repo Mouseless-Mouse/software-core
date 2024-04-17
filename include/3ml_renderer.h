@@ -42,6 +42,7 @@ class Renderer {
     bool m_dom_rendered;
     bool m_initialized;
     std::size_t m_total_height;
+    std::string m_title;
 
     /// @brief Clamps the value of m_scroll_target so that the screen doesn't
     /// show anything outside of the document, if possible.
@@ -61,6 +62,9 @@ class Renderer {
     /// @brief Selects the previous selectable node and scrolls until it is
     /// visible or just scrolls if there isn't any previous node to select.
     void select_prev();
+
+    /// @brief Interacts with the currently selected node, if there is one.
+    void interact();
 
     /// @brief Renders the status bar on the screen. Status bar is always at the
     /// top, is STATUS_BAR_HEIGHT pixels tall, and its background is
