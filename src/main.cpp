@@ -36,7 +36,7 @@ static duk_ret_t native_print(duk_context *ctx) {
 
 TFT_Parallel display(320, 170);
 
-threeml::Renderer renderer(&display, nullptr);
+threeml::Renderer renderer(&display);
 
 auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     uint32_t t = 0;
@@ -50,26 +50,8 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     TickType_t wakeTime = xTaskGetTickCount();
 
     size_t runningBehind = 0;
-    while (1) {
-        // while (!display.done_refreshing());
-        { auto _p = Profile(display);
-
-            renderer.render();
-            // display.clear();
-
-            // // Draw code goes between `display.clear()` and `display.refresh()`
-            // display.setCursor(10, 10);
-            // display.print("Hello, Mouseless World!");
-            // display.setCursor(10, 40);
-            // display.printf("Frame %i", ++t);
-            // display.setCursor(10, 70);
-            // display.printf("USB %s", usbMounted ? "Connected" : "Disconnected");
-
-            // display.refresh();
-
-            display.setCursor(10, 100);
-        }
-
+    while (true) {
+        renderer.render();
         if (xTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17)) == pdFALSE) {
             ++runningBehind;
             if (runningBehind == 10)
@@ -283,25 +265,7 @@ void setup() {
         "<a href=\"gnome_ann.3ml\">Here is the third link!</a>"
         "</body>"));
     renderer.init();
-    renderer.set_dom(dom);
-
-    // downButton
-    // .on(Button::Event::PRESS, [](){
-    //     TaskPrint().println("Boop!");
-    // })
-    // .on(Button::Event::RELEASE, [](){
-    //     TaskPrint().println("Un-Boop!");
-    // })
-    // .on(Button::Event::CLICK, [](){
-    //     display.set_backlight(255);
-    //     TaskPrint().println("Short Boop");
-    // })
-    // .on(Button::Event::HOLD, [](){
-    //     display.set_backlight(50);
-    //     TaskPrint().println("Long Boop");
-    // });
-
-    // downButton.attach();
+    renderer.load_dom(dom);
 
     /*
         Unit testing block - Please place unit tests here until someone comes up with a better place for them
