@@ -257,17 +257,8 @@ void helpMePlz(std::vector<const char *> &args) {
 }
 
 void setup() {
-
-    auto dom = threeml::clean_dom(threeml::parse_string(
-        "<head><title>Test</title></head><body><h1>Hello, "
-        "Mouseless World!</h1>And hello to you, too!"
-        "<a href=\"yourmom.3ml\">This is a link!</a>"
-        "<a href=\"nowhere.3ml\">This is a link, too!</a>"
-        "<h1>Here's some more filler text! Lorem ipsum dolor sit amet.</h1>"
-        "<a href=\"gnome_ann.3ml\">Here is the third link!</a>"
-        "</body>"));
     renderer.init();
-    renderer.load_dom(dom);
+    renderer.load_file("/index.3ml");
 
     /*
         Unit testing block - Please place unit tests here until someone comes up with a better place for them

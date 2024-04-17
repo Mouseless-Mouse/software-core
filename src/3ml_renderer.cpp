@@ -6,6 +6,7 @@
 #include "state.h"
 #include "usb_classes.h"
 #include <Arduino.h>
+#include <FFat.h>
 
 bool threeml::Renderer::selectable_node_t::is_visible(
     std::size_t scroll_height, std::size_t display_height) {
@@ -54,7 +55,6 @@ void threeml::Renderer::select_next() {
     // Otherwise, select the next node.
     m_current_selected++;
     auto node = m_selectable_nodes[m_current_selected];
-    USBSerial.printf("Node top: %d, node bottom: %d\n", node.top, node.bottom);
     if (node.is_visible(m_scroll_height,
                         m_display->height() - STATUS_BAR_HEIGHT)) {
         return;
@@ -178,15 +178,19 @@ void threeml::Renderer::render_node(const threeml::DOMNode *node,
     }
 }
 
-void threeml::Renderer::init() {
+bool threeml::Renderer::init() {
     if (m_initialized) {
-        return;
+        return true;
     }
-    m_initialized = true;
     m_up_button.on(Button::Event::CLICK, [this]() { select_prev(); });
     m_down_button.on(Button::Event::CLICK, [this]() { select_next(); });
     m_up_button.attach();
     m_down_button.attach();
+    if (!FFat.begin(true)) {
+        return false;
+    }
+    m_initialized = true;
+    return true;
 }
 
 void threeml::Renderer::render() {
@@ -221,6 +225,19 @@ void threeml::Renderer::render() {
     draw_status_bar();
 
     m_display->refresh();
+}
+
+bool threeml::Renderer::load_file(const char *path) {
+    fs::File f = FFat.open(path);
+    if (!f) {
+        return false;
+    }
+    char *buffer = new char[f.size() + 1];
+    f.readBytes(buffer, f.size());
+    buffer[f.size()] = '\0';
+    f.close();
+    load_dom(threeml::clean_dom(threeml::parse_string(buffer)));
+    return true;
 }
 
 void threeml::Renderer::load_dom(threeml::DOM *dom) {

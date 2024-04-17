@@ -120,11 +120,18 @@ class Renderer {
 
     /// @brief Initializes the renderer by setting up the display and buttons.
     /// Can be called multiple times without issue.
-    void init();
+    /// @return A boolean indicating if initialization was successful.
+    bool init();
 
     /// @brief Draws the current state of the DOM to the screen. If there is no
     /// loaded DOM, refreshes the screen and just draws a blank status bar.
     void render();
+
+    /// @brief Loads a 3ML file into the renderer. Clears and frees
+    /// the old DOM if loading the new file was successful.
+    /// @param path The path to the file to load.
+    /// @return A boolean indicating if loading the file was successful.
+    bool load_file(const char *path);
 
     /// @brief Loads a new DOM into the renderer, clearing the old one. Does not
     /// free the old DOM, in case this method is used to reload the DOM after
