@@ -52,10 +52,12 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     size_t runningBehind = 0;
     while (true) {
         renderer.render();
-        if (xTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17)) == pdFALSE) {
+        if (xTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(34)) == pdFALSE) {
             ++runningBehind;
-            if (runningBehind == 10)
+            if (runningBehind >= 10) {
                 Warn<TaskLog>().println("Draw task is running behind!");
+                runningBehind = 0;
+            }
         }
     }
 });

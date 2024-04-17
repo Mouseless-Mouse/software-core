@@ -54,6 +54,7 @@ void threeml::Renderer::select_next() {
     // Otherwise, select the next node.
     m_current_selected++;
     auto node = m_selectable_nodes[m_current_selected];
+    USBSerial.printf("Node top: %d, node bottom: %d\n", node.top, node.bottom);
     if (node.is_visible(m_scroll_height,
                         m_display->height() - STATUS_BAR_HEIGHT)) {
         return;
@@ -142,7 +143,7 @@ void threeml::Renderer::render_h1(
 
 void threeml::Renderer::render_node(const threeml::DOMNode *node,
                                     std::size_t &position,
-                                    std::size_t selectable_index) {
+                                    std::size_t &selectable_index) {
     auto bottom_of_display =
         m_scroll_height + m_display->height() - STATUS_BAR_HEIGHT;
     if (m_dom_rendered && position > bottom_of_display) {
@@ -207,8 +208,9 @@ void threeml::Renderer::render() {
         m_scroll_height = (m_scroll_height * 3 + m_scroll_target) / 4;
     }
     std::size_t position = 0;
+    std::size_t selectable_index = 0;
     for (const auto node : m_dom->top_level_nodes) {
-        render_node(node, position);
+        render_node(node, position, selectable_index);
     }
     // I call this the "Christopher Columbus" method for determining the total
     // height of the document. It's expensive to render the entire document just

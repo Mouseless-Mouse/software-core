@@ -105,7 +105,7 @@ class Renderer {
     /// @param selectable_index The index in the selectable nodes list of the
     /// next selectable node (whether it is this node or a child node).
     void render_node(const DOMNode *node, std::size_t &position,
-                     std::size_t selectable_index = 0);
+                     std::size_t &selectable_index);
 
   public:
     Renderer(TFT_Parallel *display)
