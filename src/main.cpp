@@ -89,9 +89,12 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     ledcSetup(BASIC_LEDC_CHANNEL, 1000, 8);
     ledcAttachPin(LED_BUILTIN, BASIC_LEDC_CHANNEL);
 
+    TickType_t wakeTime = xTaskGetTickCount();
+
     while (1) {
         ledcWrite(BASIC_LEDC_CHANNEL, 128 + 127 * sin(t / 120.f * 2 * PI));
         ++t;
+        vTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17));
     }
 });
 
@@ -100,17 +103,21 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
 auto imuTask = Task("IMU Polling", 5000, 1, +[](const uint16_t freq) {
     const TickType_t delayTime = pdMS_TO_TICKS(1000 / freq);
     Orientation cur;
-    if (!BNO086::init()) {
+    if (!BNO086::init(false)) {
         Error<TaskLog>().println("Failed to initialize BNO086");
         return;
     }
+    vTaskDelay(pdMS_TO_TICKS(100));
     uint32_t t = 0;
     mouse.begin();
     mouseInitialized = true;
     while (1) {
         cur = BNO086::poll();
-        mouse.move(pow(cur.pitch, 3) / 60, pow(cur.roll, 3) / 60);
-        if (t % 32 == 0) {
+        mouse.move(
+            clamp(-50, static_cast<int>(pow(cur.pitch, 3) / 60), 50),
+            clamp(-50, static_cast<int>(pow(cur.roll, 3) / 60), 50)
+        );
+        if (++t % 32 == 0) {
             TaskPrint().printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -136,6 +143,7 @@ auto touchTask = Task("Touch Reporting", 4000, 1, +[]() {
     }
 });
 
+#ifdef PRO_FEATURES
 auto displayDimTest = Task("Display Dimmer", 3000, 1, +[]() {
     static uint8_t brightness = 255;
     static int8_t dir = -1;
@@ -149,6 +157,7 @@ auto displayDimTest = Task("Display Dimmer", 3000, 1, +[]() {
         vTaskDelay(pdMS_TO_TICKS(2));
     }
 });
+#endif
 
 auto deferredPrinter = Task("Shell Greeter", 3000, 1, +[](){
     while (!USBSerial) vTaskDelay(pdMS_TO_TICKS(100));
@@ -195,8 +204,13 @@ void getTaskLog(std::vector<const char*>& args) {
     }
     TaskHandle_t status = xTaskGetHandle(target);
     if (!status) {
-        USBSerial.printf("Status '%s' not found\n", target);
-        return;
+        if (strcmp("timer", target) != 0) {
+            USBSerial.printf("Status '%s' not found\n", target);
+            return;
+        }
+        else {
+            status = xTimerGetTimerDaemonTaskHandle();
+        }
     }
     USBSerial.println("Log entries:");
     USBSerial.print(TaskLog(status).get().c_str()); // Log should end with newline
@@ -275,12 +289,12 @@ void helpMePlz(std::vector<const char *> &args) {
 }
 
 void setup() {
-
+#ifdef PRO_FEATURES
     auto dom = threeml::clean_dom(
         threeml::parse_string("<head><title>Test</title></head><body><h1>Hello, "
                               "Mouseless World!</h1>And hello to you, too!</body>"));
     renderer.set_dom(dom);
-
+#endif
     downButton
     .on(Button::Event::PRESS, [](){
         TaskPrint().println("Boop!");
@@ -315,12 +329,14 @@ void setup() {
         duk_destroy_heap(duk);
     });
 
+#ifdef PRO_FEATURES
     UnitTest::add("backlight", []() {
         if (displayDimTest.isRunning)
             displayDimTest.stop();
         else
             displayDimTest();
     });
+#endif
 
     /*
         End of unit testing block
@@ -352,7 +368,7 @@ void setup() {
 
     drawTask();
     touchTask();
-    imuTask(10);
+    imuTask(90);
 }
 
 void loop() {

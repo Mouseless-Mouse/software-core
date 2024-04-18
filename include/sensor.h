@@ -21,9 +21,14 @@ namespace BNO086 {
     extern BNO08x imu;
 
     // Initialize the sensor
-    bool init();
+    bool init(bool wireInitialized);
 
     // Poll the sensor for new data
-    Orientation& poll();
+    Orientation poll();
 
 } // namespace BNO086
+
+template <typename T>
+T clamp(T lower, T sig, T upper) {
+    return min(max(lower, sig), upper);
+}
