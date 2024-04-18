@@ -228,6 +228,7 @@ void threeml::Renderer::render() {
         return;
     }
 
+    xSemaphoreTake(m_dom_mutex, portMAX_DELAY); // Lock the DOM for rendering.
     if (m_dom_rendered) {
         clamp_scroll_target();
         // Smooth scrolling effect. Just uses an alpha filter.
@@ -244,6 +245,7 @@ void threeml::Renderer::render() {
     // the document is as we render it.
     m_total_height = (position > m_total_height) ? position : m_total_height;
     m_dom_rendered = true;
+    xSemaphoreGive(m_dom_mutex); // Unlock the DOM for rendering.
     draw_status_bar();
 
     m_display->refresh();
@@ -269,6 +271,7 @@ bool threeml::Renderer::load_file(const char *path, bool add_to_stack) {
 }
 
 void threeml::Renderer::load_dom(threeml::DOM *dom) {
+    xSemaphoreTake(m_dom_mutex, portMAX_DELAY);
     m_dom = dom;
     m_dom_rendered = false;
     m_total_height = 0;
@@ -284,4 +287,5 @@ void threeml::Renderer::load_dom(threeml::DOM *dom) {
             m_title = child->children.front()->plaintext_data.front();
         }
     }
+    xSemaphoreGive(m_dom_mutex);
 }

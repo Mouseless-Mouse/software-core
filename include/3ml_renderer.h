@@ -34,6 +34,7 @@ class Renderer {
 
     TFT_Parallel *m_display;
     DOM *m_dom;
+    SemaphoreHandle_t m_dom_mutex;
     std::size_t m_scroll_height;
     std::vector<selectable_node_t> m_selectable_nodes;
     std::size_t m_current_selected;
@@ -119,7 +120,9 @@ class Renderer {
     Renderer(TFT_Parallel *display)
         : m_display(display), m_dom(nullptr), m_scroll_height(0),
           m_current_selected(0), m_up_button(0), m_down_button(14),
-          m_dom_rendered(false) {}
+          m_dom_rendered(false) {
+        m_dom_mutex = xSemaphoreCreateMutex();
+    }
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
     Renderer(Renderer &&) = default;
