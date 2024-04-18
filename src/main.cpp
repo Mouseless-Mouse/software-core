@@ -24,8 +24,6 @@ BleMouse mouse("Mouseless Mouse " __TIME__, "The Mouseless Gang", 69U);
 
 Global<bool> mouseInitialized(false);
 
-Button downButton(14);
-
 duk_context *duk;
 static duk_ret_t native_print(duk_context *ctx) {
   USBSerial.println(duk_to_string(ctx, 0));
@@ -38,7 +36,7 @@ static duk_ret_t native_print(duk_context *ctx) {
 
 TFT_Parallel display(320, 170);
 
-threeml::Renderer renderer(&display, nullptr);
+threeml::Renderer renderer(&display);
 
 auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     uint32_t t = 0;
@@ -52,30 +50,14 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     TickType_t wakeTime = xTaskGetTickCount();
 
     size_t runningBehind = 0;
-    while (1) {
-        // while (!display.done_refreshing());
-        { auto _p = Profile(display);
-
-            renderer.render();
-            // display.clear();
-
-            // // Draw code goes between `display.clear()` and `display.refresh()`
-            // display.setCursor(10, 10);
-            // display.print("Hello, Mouseless World!");
-            // display.setCursor(10, 40);
-            // display.printf("Frame %i", ++t);
-            // display.setCursor(10, 70);
-            // display.printf("USB %s", usbMounted ? "Connected" : "Disconnected");
-
-            // display.refresh();
-
-            display.setCursor(10, 100);
-        }
-
-        if (xTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(17)) == pdFALSE) {
+    while (true) {
+        renderer.render();
+        if (xTaskDelayUntil(&wakeTime, pdMS_TO_TICKS(34)) == pdFALSE) {
             ++runningBehind;
-            if (runningBehind == 10)
+            if (runningBehind >= 10) {
                 Warn<TaskLog>().println("Draw task is running behind!");
+                runningBehind = 0;
+            }
         }
     }
 });
@@ -290,26 +272,9 @@ void helpMePlz(std::vector<const char *> &args) {
 
 void setup() {
 #ifdef PRO_FEATURES
-    auto dom = threeml::clean_dom(
-        threeml::parse_string("<head><title>Test</title></head><body><h1>Hello, "
-                              "Mouseless World!</h1>And hello to you, too!</body>"));
-    renderer.set_dom(dom);
+    renderer.init();
+    renderer.load_file("/index.3ml");
 #endif
-    downButton
-    .on(Button::Event::PRESS, [](){
-        TaskPrint().println("Boop!");
-    })
-    .on(Button::Event::RELEASE, [](){
-        TaskPrint().println("Un-Boop!");
-    })
-    .on(Button::Event::CLICK, [](){
-        TaskPrint().println("Short Boop");
-    })
-    .on(Button::Event::HOLD, [](){
-        TaskPrint().println("Long Boop");
-    });
-
-    downButton.attach();
 
     /*
         Unit testing block - Please place unit tests here until someone comes up with a better place for them

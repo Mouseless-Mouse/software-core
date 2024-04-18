@@ -1,3 +1,4 @@
+#pragma once
 #include <Arduino.h>
 
 #ifdef PRO_FEATURES
@@ -6,34 +7,18 @@
 
 #define BATTERY_FILTER_GAIN 0.3f
 
-namespace battery
-{
-    float get_voltage()
-    {
-#ifdef PRO_FEATURES
-        static float voltage = 0.0f;
-        float raw = static_cast<float>(analogReadMilliVolts(BAT_ADC_PIN)) / 1000.0f;
-        voltage = voltage * BATTERY_FILTER_GAIN + (1.0f - BATTERY_FILTER_GAIN) * raw;
-        return voltage;
-#else
-        return 3.7f;
-#endif
-    }
+namespace battery {
 
-    float get_level()
-    {
-        auto raw = (get_voltage() - 3.2f) * 200.0f;
-        if (raw < 0.0f)
-        {
-            return 0.0f;
-        }
-        else if (raw > 100.0f)
-        {
-            return 100.0f;
-        }
-        else
-        {
-            return raw;
-        }
-    }
-}
+/// @brief Get current battery voltage, if available. If not, return a default
+/// voltage of 3.7V. Filtered using an alpha filter with gain of
+/// BATTERY_FILTER_GAIN.
+/// @return The current battery voltage.
+float get_voltage();
+/// @brief Get the current estimated battery percentage. Returns 100% if the
+/// battery voltage is not available; otherwise, assumes that the battery's
+/// voltage-charge relationship is linear and that it is fully charged at 3.7V
+/// and empty at 3.2V. Clamps the result to the range 0% to 100%.
+/// @return The current estimated battery percentage.
+float get_level();
+
+} // namespace battery

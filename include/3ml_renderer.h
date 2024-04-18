@@ -2,121 +2,154 @@
 
 #include "3ml_cleaner.h"
 #include "battery.h"
+#include "button.h"
 #include "display.h"
 #include "state.h"
 #include "usb_classes.h"
 #include <Arduino.h>
+#include <stack>
 
-#define STATUS_BAR_HEIGHT 20                    // Pixels
-#define ACCENT_COLOR color_rgb(0, 251, 0)       // 5-6-5 Color (bright green)
-#define SECONDARY_COLOR color_rgb(0, 127, 0)    // 5-6-5 Color (muted green)
-#define TEXT_COLOR color_rgb(255, 255, 255)     // 5-6-5 Color (white)
+#define STATUS_BAR_HEIGHT 20 // Pixels
+#define ACCENT_COLOR color_rgb(247, 176, 91)
+#define SECONDARY_COLOR color_rgb(204, 88, 3)
+#define TEXT_COLOR color_rgb(255, 255, 255)
+#define BACKGROUND_COLOR color_rgb(31, 19, 0)
 
 namespace threeml {
+
 class Renderer {
-private:
-  TFT_Parallel *m_display;
-  DOM *m_dom;
-  DOMNode *m_selected_node;
-  std::size_t m_scroll_height;
+  private:
+    struct selectable_node_t {
+        DOMNode *node;
+        std::size_t top;
+        std::size_t bottom;
+        selectable_node_t(DOMNode *node) : node(node), top(0), bottom(0) {}
 
-  void draw_status_bar() {
-    m_display->fillRect(0, 0, m_display->width(), STATUS_BAR_HEIGHT,
-                        ACCENT_COLOR);
-    m_display->setTextColor(TEXT_COLOR, ACCENT_COLOR);
-    m_display->setTextSize(2); // 12x16 pixels
-    m_display->setCursor(2, 2);
-    m_display->print("Battery: ");
-    m_display->print(battery::get_level());
-    m_display->print("%");
-  }
+        /// @brief Determines if the node is visible on the screen.
+        /// @param scroll_height The current scroll position on the page.
+        /// @param display_height The height of the viewport.
+        /// @return A bool indicating whether the node is visible on the screen.
+        bool is_visible(std::size_t scroll_height, std::size_t display_height);
+    };
 
-  void render_node(const DOMNode *node, std::size_t &lowest_scroll_height) {
-    if (lowest_scroll_height >
-        m_scroll_height + (m_display->height() - STATUS_BAR_HEIGHT)) {
-      return;
+    TFT_Parallel *m_display;
+    DOM *m_dom;
+    SemaphoreHandle_t m_dom_mutex;
+    std::size_t m_scroll_height;
+    std::vector<selectable_node_t> m_selectable_nodes;
+    std::size_t m_current_selected;
+    long m_scroll_target; // signed to allow for simpler clamping code
+    Button m_up_button;
+    Button m_down_button;
+    bool m_dom_rendered;
+    bool m_initialized;
+    std::stack<std::string> m_file_stack;
+    std::size_t m_total_height;
+    std::string m_title;
+
+    /// @brief Clamps the value of m_scroll_target so that the screen doesn't
+    /// show anything outside of the document, if possible.
+    void clamp_scroll_target();
+
+    /// @brief Traverse the DOM to find all selectable nodes.
+    /// @param root The root node of the subtree being examined.
+    void explore_dom(DOMNode *root);
+
+    /// @brief Clears the list of selectable nodes and repopulates it.
+    void refresh_selectable_nodes();
+
+    /// @brief Selects the next selectable node and scrolls until it is visible
+    /// or just scrolls if there isn't any next node to select.
+    void select_next();
+
+    /// @brief Selects the previous selectable node and scrolls until it is
+    /// visible or just scrolls if there isn't any previous node to select.
+    void select_prev();
+
+    /// @brief Interacts with the currently selected node, if there is one.
+    void interact();
+
+    void go_back();
+
+    /// @brief Renders the status bar on the screen. Status bar is always at the
+    /// top, is STATUS_BAR_HEIGHT pixels tall, and its background is
+    /// ACCENT_COLOR.
+    void draw_status_bar();
+
+    /// @brief Renders plaintext data to the screen. Background color is
+    /// BACKGROUND_COLOR, text color is TEXT_COLOR. Font is 12x16 pixels, and
+    /// there is 2 pixels of padding after each line.
+    /// @param plaintext_data The plaintext data to render.
+    /// @param position The current scroll position on the page. Updated after
+    /// the call to reflect the bottom of the rendered node.
+    void render_plaintext(const std::vector<std::string> &plaintext_data,
+                          std::size_t &position);
+
+    /// @brief Renders a link to the screen. Rendering is the same as plaintext,
+    /// with the exception of colors. If the link is currently selected,
+    /// background color is ACCENT_COLOR; otherwise, it is BACKGROUND_COLOR.
+    /// Additionally, if selected, the text color is TEXT_COLOR, but if not, it
+    /// is ACCENT_COLOR.
+    /// @param node The link node.
+    /// @param position The current scroll position on the page. Updated after
+    /// the call to reflect the bottom of the rendered node.
+    /// @param index The index in the selectable nodes list of this node.
+    void render_link(const DOMNode *node, std::size_t &position,
+                     std::size_t index);
+
+    /// @brief Renders an H1 tag to the screen. Rendering is the same as
+    /// plaintext, except the font is 24x32 pixels. Padding is unchanged.
+    /// @param plaintext_data The underlying plaintext data to render.
+    /// @param position The current scroll position on the page. Updated after
+    /// the call to reflect the bottom of the rendered node.
+    void render_h1(const std::vector<std::string> &plaintext_data,
+                   std::size_t &position);
+
+    /// @brief Renders a DOM node to the screen. Recursively draws nodes in a
+    /// pre-order fashion (i.e. parent, then children). Invisible nodes (like
+    /// metadata) are not rendered.
+    /// @param node The node to render.
+    /// @param position The current scroll position on the page. Updated after
+    /// the call to reflect the bottom of the rendered node.
+    /// @param selectable_index The index in the selectable nodes list of the
+    /// next selectable node (whether it is this node or a child node).
+    void render_node(const DOMNode *node, std::size_t &position,
+                     std::size_t &selectable_index);
+
+  public:
+    Renderer(TFT_Parallel *display)
+        : m_display(display), m_dom(nullptr), m_scroll_height(0),
+          m_current_selected(0), m_up_button(0), m_down_button(14),
+          m_dom_rendered(false) {
+        m_dom_mutex = xSemaphoreCreateMutex();
     }
+    Renderer(const Renderer &) = delete;
+    Renderer &operator=(const Renderer &) = delete;
+    Renderer(Renderer &&) = default;
+    Renderer &operator=(Renderer &&) = default;
+    ~Renderer() = default;
 
-    const DOMNode *child = nullptr; // used for display of certain tags
+    /// @brief Initializes the renderer by setting up the display and buttons.
+    /// Can be called multiple times without issue.
+    /// @return A boolean indicating if initialization was successful.
+    bool init();
 
-    switch (node->type) {
-    case NodeType::PLAINTEXT:
-      lowest_scroll_height += 4;
-      m_display->setTextColor(TEXT_COLOR, 0);
-      m_display->setTextSize(2); // 12x16 pixels
-      for (const auto &line : node->plaintext_data) {
-        m_display->setCursor(2, STATUS_BAR_HEIGHT + lowest_scroll_height -
-                                    m_scroll_height);
-        lowest_scroll_height += 18; // 16 pixels of text + 2 pixels of padding
-        m_display->print(line.c_str());
-      }
-      break;
-    case NodeType::H1:
-      child = node->children.front();
-      lowest_scroll_height += 4;
-      m_display->setTextColor(TEXT_COLOR, 0);
-      m_display->setTextSize(3); // 18x24 pixels
-      for (const auto &line : child->plaintext_data) {
-        m_display->setCursor(2, STATUS_BAR_HEIGHT + lowest_scroll_height -
-                                    m_scroll_height);
-        lowest_scroll_height += 26; // 24 pixels of text + 2 pixels of padding
-        m_display->print(line.c_str());
-      }
-      break;
-    case NodeType::A:
-      child = node->children.front();
-      if (node == m_selected_node) {
-        m_display->setTextColor(TEXT_COLOR, ACCENT_COLOR);
-      } else {
-        m_display->setTextColor(SECONDARY_COLOR, 0);
-      }
-      lowest_scroll_height += 4;
-      m_display->setTextSize(2); // 12x16 pixels
-      for (const auto &line : child->plaintext_data) {
-        m_display->setCursor(2, STATUS_BAR_HEIGHT + lowest_scroll_height -
-                                    m_scroll_height);
-        lowest_scroll_height += 18; // 16 pixels of text + 2 pixels of padding
-        m_display->print(line.c_str());
-      }
-      break;
-    }
+    /// @brief Draws the current state of the DOM to the screen. If there is no
+    /// loaded DOM, refreshes the screen and just draws a blank status bar.
+    void render();
 
-    if (node->type == NodeType::DIV || node->type == NodeType::BODY) {
-      for (const auto child : node->children) {
-        render_node(child, lowest_scroll_height);
-      }
-    }
-  }
+    /// @brief Loads a 3ML file into the renderer. Clears and frees
+    /// the old DOM if loading the new file was successful.
+    /// @param path The path to the file to load.
+    /// @param add_to_stack A boolean indicating if the file should be added to
+    /// the file stack. Defaults to true.
+    /// @return A boolean indicating if loading the file was successful.
+    bool load_file(const char *path, bool add_to_stack = true);
 
-public:
-  Renderer(TFT_Parallel *display, DOM *dom)
-      : m_display(display), m_dom(dom), m_scroll_height(0),
-        m_selected_node(nullptr) {}
-  Renderer(const Renderer &) = delete;
-  Renderer &operator=(const Renderer &) = delete;
-  Renderer(Renderer &&) = default;
-  Renderer &operator=(Renderer &&) = default;
-  ~Renderer() = default;
-
-  void render() {
-    while (!m_display->done_refreshing())
-      ;
-    m_display->clear();
-
-    draw_status_bar();
-    if (m_dom == nullptr) {
-      m_display->refresh();
-      return;
-    }
-
-    std::size_t iliterallydonotcare = 0;
-    for (const auto node : m_dom->top_level_nodes) {
-      render_node(node, iliterallydonotcare);
-    }
-
-    m_display->refresh();
-  }
-
-  void set_dom(DOM *dom) { m_dom = dom; }
+    /// @brief Loads a new DOM into the renderer, clearing the old one. Does not
+    /// free the old DOM, in case this method is used to reload the DOM after
+    /// modifying it.
+    /// @param dom The new DOM to load.
+    void load_dom(DOM *dom);
 };
 } // namespace threeml
