@@ -4,20 +4,17 @@
 
 namespace meta {
 
-template <typename... Ts>
-struct get_first_type {};
+template <typename... Ts> struct get_first_type {};
 
-template <typename T, typename... Ts>
-struct get_first_type<T, Ts...> {
+template <typename T, typename... Ts> struct get_first_type<T, Ts...> {
     typedef T type;
 };
 
-template <typename... Ts>
-using first_t = typename get_first_type<Ts...>::type;
+template <typename... Ts> using first_t = typename get_first_type<Ts...>::type;
 
-template <typename... Ts, typename F>
-void for_each(F func, Ts&&... args) {
-    uint8_t result[sizeof...(Ts)] = {(func(std::forward<Ts>(args)), uint8_t(0))...};
+template <typename... Ts, typename F> void for_each(F func, Ts &&...args) {
+    uint8_t result[sizeof...(Ts)] = {
+        (func(std::forward<Ts>(args)), uint8_t(0))...};
 }
 
 template <typename V, typename E> struct result_t {
@@ -32,6 +29,23 @@ template <typename V, typename E> struct result_t {
 
     V unwrap() {
         if (has_error) {
+            USBSerial.printf("Unwrapped error in task %s\n. Aborting task.",
+                             pcTaskGetName(nullptr));
+            vTaskDelete(nullptr);
+        }
+        return value;
+    }
+};
+
+template <typename T> struct optional_t {
+    T value;
+    bool has_value;
+
+    optional_t(T value) : value(value), has_value(true) {}
+    optional_t() : has_value(false) {}
+
+    T unwrap() {
+        if (!has_value) {
             USBSerial.printf("Unwrapped error in task %s\n. Aborting task.",
                              pcTaskGetName(nullptr));
             vTaskDelete(nullptr);
