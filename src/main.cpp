@@ -68,16 +68,15 @@ void loop() {
   */
   display.refresh();
 }
+//how many times the battery level has to drop below the current bracket for it to permanently register
+//if the function is not called once per frame then the frequency needs to be adjusted
 const uint8_t max_drop_cnt = 200; //adjust
 uint8_t getBatteryPercentage() {
   float battery_voltage = (analogRead(4) / 4095.0) * 7.26;
-  //static uint8_t filtered_level = 101;
   static uint8_t filtered_level = 100;
   static uint8_t drop_cnt = 0;
   static bool stable_timeout = 0;
   uint8_t level = 100; 
-  //display.setCursor(10, 80);
-  //display.printf("%d %d %d \n", filtered_level, level, drop_cnt);
 
   //handle charging
   if(battery_voltage >= 4.7) {
@@ -119,6 +118,8 @@ uint8_t getBatteryPercentage() {
     //the battery tends to have a voltage drop whenever the board is first powered
     //this delay gives the battery a little time to stabilize before remembering the measurements
     //the sensors and screens should be initialized before this timeout expires
+
+    //instead of doing this it might be possible to add code to increase the battery percentage if it has been higher for long enough (similar to the code that drops the percentage)
     if(millis() >= 5000) {
       stable_timeout = 1;
     } else {
