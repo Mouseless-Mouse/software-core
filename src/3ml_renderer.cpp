@@ -94,7 +94,8 @@ void threeml::Renderer::interact() {
     auto node = m_selectable_nodes[m_current_selected].node;
     switch (node->type) {
     case threeml::NodeType::A:
-        load_file(node->unique_attributes["href"].c_str());
+        m_must_reload = true;
+        m_current_file = node->unique_attributes["href"];
         break;
     }
 }
@@ -104,8 +105,9 @@ void threeml::Renderer::go_back() {
         return;
     }
     m_file_stack.pop();
-    TaskLog().printf("Going back to %s\n", m_file_stack.top().c_str());
-    load_file(m_file_stack.top().c_str(), false);
+    m_must_reload = true;
+    m_going_back = true;
+    m_current_file = m_file_stack.top();
 }
 
 void threeml::Renderer::draw_status_bar() {
@@ -198,6 +200,14 @@ void threeml::Renderer::render_node(const threeml::DOMNode *node,
     }
 }
 
+threeml::Renderer::~Renderer() {
+    vSemaphoreDelete(m_dom_mutex);
+    if (m_dom == nullptr) {
+        return;
+    }
+    delete m_dom;
+}
+
 bool threeml::Renderer::init() {
     if (m_initialized) {
         return true;
@@ -226,6 +236,11 @@ void threeml::Renderer::render() {
         draw_status_bar();
         m_display->refresh();
         return;
+    }
+    if (m_must_reload) {
+        m_must_reload = false;
+        load_file(m_current_file.c_str(), !m_going_back);
+        m_going_back = false;
     }
 
     xSemaphoreTake(m_dom_mutex, portMAX_DELAY); // Lock the DOM for rendering.
@@ -265,6 +280,18 @@ bool threeml::Renderer::load_file(const char *path, bool add_to_stack) {
     if (add_to_stack) {
         m_file_stack.push(path);
     }
+    for (const auto node : m_dom->top_level_nodes) {
+        if (node->type != threeml::NodeType::BODY) {
+            continue;
+        }
+        auto attrs = node->unique_attributes;
+        if (attrs.find("onbeforeunload") != attrs.end()) {
+            if (m_js_ctx != nullptr) {
+                duk_peval_string(m_js_ctx, attrs["onbeforeunload"].c_str());
+            }
+            break;
+        }
+    }
     delete[] buffer;
     delete tmp;
     return true;
@@ -272,19 +299,33 @@ bool threeml::Renderer::load_file(const char *path, bool add_to_stack) {
 
 void threeml::Renderer::load_dom(threeml::DOM *dom) {
     xSemaphoreTake(m_dom_mutex, portMAX_DELAY);
+    bool is_a_reload = (m_dom == dom);
     m_dom = dom;
     m_dom_rendered = false;
     m_total_height = 0;
     refresh_selectable_nodes();
+    duk_destroy_heap(m_js_ctx);
+    m_js_ctx = duk_create_heap_default();
+    create_js_bindings(m_js_ctx, m_dom);
     for (const auto node : m_dom->top_level_nodes) {
-        if (node->type != threeml::NodeType::HEAD) {
+        if (node->type == threeml::NodeType::BODY) {
+            auto attrs = node->unique_attributes;
+            if (attrs.find("onload") != attrs.end() && !is_a_reload) {
+                if (m_js_ctx != nullptr) {
+                    duk_peval_string(m_js_ctx, attrs["onload"].c_str());
+                }
+            }
             continue;
         }
         for (const auto child : node->children) {
-            if (child->type != threeml::NodeType::TITLE) {
-                continue;
+            if (child->type == threeml::NodeType::SCRIPT) {
+                if (m_js_ctx != nullptr) {
+                    load_js_file(m_js_ctx,
+                                 child->unique_attributes["src"].c_str());
+                }
+            } else if (child->type == threeml::NodeType::TITLE) {
+                m_title = child->children.front()->plaintext_data.front();
             }
-            m_title = child->children.front()->plaintext_data.front();
         }
     }
     xSemaphoreGive(m_dom_mutex);
