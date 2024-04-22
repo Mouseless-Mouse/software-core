@@ -105,8 +105,9 @@ void threeml::Renderer::go_back() {
         return;
     }
     m_file_stack.pop();
-    TaskLog().printf("Going back to %s\n", m_file_stack.top().c_str());
-    load_file(m_file_stack.top().c_str(), false);
+    m_must_reload = true;
+    m_going_back = true;
+    m_current_file = m_file_stack.top();
 }
 
 void threeml::Renderer::draw_status_bar() {
@@ -237,9 +238,9 @@ void threeml::Renderer::render() {
         return;
     }
     if (m_must_reload) {
-        TaskLog().printf("Rendering %s\n", m_current_file.c_str());
         m_must_reload = false;
-        load_file(m_current_file.c_str());
+        load_file(m_current_file.c_str(), !m_going_back);
+        m_going_back = false;
     }
 
     xSemaphoreTake(m_dom_mutex, portMAX_DELAY); // Lock the DOM for rendering.

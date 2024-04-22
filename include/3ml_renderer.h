@@ -52,6 +52,7 @@ class Renderer {
     duk_context *m_js_ctx;
     bool m_must_reload;
     std::string m_current_file;
+    bool m_going_back;
 
     /// @brief Clamps the value of m_scroll_target so that the screen doesn't
     /// show anything outside of the document, if possible.
