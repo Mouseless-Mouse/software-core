@@ -2,6 +2,5 @@
     <title>Help</title>
 </head>
 <body>
-    <h1>HomePage</h1>
-    <a href="/index.3ml"> -> </a>
+    <a href="/index.3ml"> HomePage </a>
 </body>

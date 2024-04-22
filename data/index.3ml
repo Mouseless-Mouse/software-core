@@ -2,10 +2,10 @@
     <title>Home page</title>
 </head>
 <body>
-    <h1>Settings</h1>
-    <a href="/Settings.3ml"> -> </a>
-    <h1>Help</h1>
-    <a href="/Help.3ml"> -> </a>
-    <h1>Examples</h1>
-    <a href="/Examples.3ml"> -> </a>
+    
+    <a href="/Settings.3ml"> Settings </a>
+    
+    <a href="/Help.3ml"> Help </a>
+    
+    <a href="/Examples.3ml"> Examples </a>
 </body>
