@@ -115,8 +115,7 @@ void threeml::Renderer::draw_status_bar() {
     m_display->setTextColor(TEXT_COLOR, ACCENT_COLOR);
     m_display->setTextSize(2); // 12x16 pixels
     m_display->setCursor(2, 2);
-    m_display->print(millis());
-    // m_display->print(m_title.c_str());
+    m_display->print(m_title.c_str());
 }
 
 void threeml::Renderer::render_plaintext(
