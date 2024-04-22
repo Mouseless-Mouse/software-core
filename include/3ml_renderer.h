@@ -1,9 +1,12 @@
 #pragma once
 
 #include "3ml_cleaner.h"
+#include "3ml_jsbindings.h"
 #include "battery.h"
 #include "button.h"
 #include "display.h"
+#include "duktape.h"
+#include "meta.h"
 #include "state.h"
 #include "usb_classes.h"
 #include <Arduino.h>
@@ -46,6 +49,9 @@ class Renderer {
     std::stack<std::string> m_file_stack;
     std::size_t m_total_height;
     std::string m_title;
+    duk_context *m_js_ctx;
+    bool m_must_reload;
+    std::string m_current_file;
 
     /// @brief Clamps the value of m_scroll_target so that the screen doesn't
     /// show anything outside of the document, if possible.
@@ -120,17 +126,21 @@ class Renderer {
     Renderer(TFT_Parallel *display)
         : m_display(display), m_dom(nullptr), m_scroll_height(0),
           m_current_selected(0), m_up_button(0), m_down_button(14),
-          m_dom_rendered(false) {
+          m_dom_rendered(false), m_initialized(false), m_js_ctx(nullptr),
+          m_title("3ML"), m_total_height(0), m_scroll_target(0), m_file_stack(),
+          m_selectable_nodes(), m_dom_mutex(nullptr) {
         m_dom_mutex = xSemaphoreCreateMutex();
     }
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
     Renderer(Renderer &&) = default;
     Renderer &operator=(Renderer &&) = default;
-    ~Renderer() = default;
 
-    /// @brief Initializes the renderer by setting up the display and buttons.
-    /// Can be called multiple times without issue.
+    // Calls the onbeforeunload event on the current DOM, if there is one.
+    ~Renderer();
+
+    /// @brief Initializes the renderer by setting up the display, buttons and
+    /// Javascript context. Can be called multiple times without issue.
     /// @return A boolean indicating if initialization was successful.
     bool init();
 

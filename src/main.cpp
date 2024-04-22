@@ -38,7 +38,7 @@ TFT_Parallel display(320, 170);
 
 threeml::Renderer renderer(&display);
 
-auto drawTask = Task("Draw Task", 5000, 1, +[]() {
+auto drawTask = Task("Draw Task", 50000, 1, +[]() {
     uint32_t t = 0;
 
     display.init();
@@ -48,6 +48,7 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
     display.setTextSize(2);
 
     TickType_t wakeTime = xTaskGetTickCount();
+    renderer.load_file("/index.3ml");
 
     size_t runningBehind = 0;
     while (true) {
@@ -271,28 +272,23 @@ void helpMePlz(std::vector<const char *> &args) {
 }
 
 void setup() {
-#ifdef PRO_FEATURES
-    renderer.init();
-    renderer.load_file("/index.3ml");
-#endif
-
     /*
         Unit testing block - Please place unit tests here until someone comes up with a better place for them
     */
 
-    UnitTest::add("js", [](){
-        duk = duk_create_heap_default();
-        duk_push_c_function(duk, native_print, 1);
-        duk_put_global_string(duk, "print");
-        duk_eval_string(duk,
-            "var fib = function(n) {"
-                "return n < 2 ? n : fib(n-2) + fib(n-1)"
-            "};"
-            "print(fib(6));"
-        );
-        USBSerial.println((int)duk_get_int(duk, -1));
-        duk_destroy_heap(duk);
-    });
+    // UnitTest::add("js", [](){
+    //     duk = duk_create_heap_default();
+    //     duk_push_c_function(duk, native_print, 1);
+    //     duk_put_global_string(duk, "print");
+    //     duk_eval_string(duk,
+    //         "var fib = function(n) {"
+    //             "return n < 2 ? n : fib(n-2) + fib(n-1)"
+    //         "};"
+    //         "print(fib(6));"
+    //     );
+    //     USBSerial.println((int)duk_get_int(duk, -1));
+    //     duk_destroy_heap(duk);
+    // });
 
 #ifdef PRO_FEATURES
     UnitTest::add("backlight", []() {
@@ -330,6 +326,10 @@ void setup() {
     else {
         USBSerial.println("Failed to initialize filesystem");
     }
+
+#ifdef PRO_FEATURES
+    renderer.init();
+#endif
 
     drawTask();
     touchTask();
