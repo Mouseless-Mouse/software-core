@@ -1,11 +1,11 @@
 <head>
-    <title>The first ever file-read 3ML document!</title>
+    <title>Home page</title>
 </head>
 <body>
     <h1>Settings</h1>
-    <a href="/Settings.3ml">Sally forth!</a>
+    <a href="/Settings.3ml"> -> </a>
     <h1>Help</h1>
-    <a href="/Help.3ml">Sally forth!</a>
+    <a href="/Help.3ml"> -> </a>
     <h1>Examples</h1>
-    <a href="/Examples.3ml">Sally forth!</a>
+    <a href="/Examples.3ml"> -> </a>
 </body>
