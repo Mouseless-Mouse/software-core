@@ -10,7 +10,7 @@ namespace threeml {
 DOMNode *get_element_by_id(DOM *dom, std::string id);
 
 static duk_ret_t _js_get_element_by_id(duk_context *ctx);
-static duk_ret_t _js_set_inner_html(duk_context *ctx);
+static duk_ret_t _js_set_inner_3ml(duk_context *ctx);
 
 void construct_element(DOM *dom, DOMNode *node, duk_context *ctx);
 

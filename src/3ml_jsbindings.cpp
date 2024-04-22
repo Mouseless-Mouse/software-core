@@ -43,10 +43,11 @@ duk_ret_t threeml::_js_get_element_by_id(duk_context *ctx) {
     return 1;
 }
 
-duk_ret_t threeml::_js_set_inner_html(duk_context *ctx) {
+duk_ret_t threeml::_js_set_inner_3ml(duk_context *ctx) {
     duk_push_this(ctx);
     duk_get_prop_string(ctx, -1, DUK_HIDDEN_SYMBOL("node"));
-    DOMNode *node = static_cast<DOMNode *>(duk_get_pointer(ctx, -1));
+    threeml::DOMNode *node =
+        static_cast<threeml::DOMNode *>(duk_get_pointer(ctx, -1));
     duk_pop(ctx);
     const char *html = duk_to_string(ctx, 0);
     auto uncleaned = threeml::parse_string(html);
@@ -65,8 +66,8 @@ void threeml::construct_element(DOM *dom, DOMNode *node, duk_context *ctx) {
         duk_push_string(ctx, attr.second.c_str());
         duk_put_prop_string(ctx, -2, attr.first.c_str());
     }
-    duk_push_string(ctx, "innerHTML");
-    duk_push_c_function(ctx, _js_set_inner_html, 1);
+    duk_push_string(ctx, "inner3ML");
+    duk_push_c_function(ctx, _js_set_inner_3ml, 1);
     duk_def_prop(ctx, -3, DUK_DEFPROP_HAVE_SETTER);
 }
 
