@@ -153,6 +153,8 @@ auto deferredPrinter = Task("Shell Greeter", 3000, 1, +[](){
     );
 });
 
+namespace ShellCommands {
+
 void treeList(File &dir, int level = 0) {
     if (!dir || !dir.isDirectory()) {
         USBSerial.println("treeList called on non-directory");
@@ -262,6 +264,19 @@ void treeCmd(std::vector<const char *> &args) {
     treeList(target);
 }
 
+void mouseSay(std::vector<const char*>& args){
+    static const char mousey[] = "         %s\n         /\n(\\   /) /  _\n (0 0)____  \\\n \"\\ /\"    \\ /\n  |' ___   /\n   \\/   \\_/\n";
+    
+    std::string result;
+    for (const char *arg : args) {
+        result += arg;
+        result += " ";
+    }
+    if (!result.empty())
+        result.pop_back();
+    USBSerial.printf(mousey, result.c_str());
+}
+
 void helpMePlz(std::vector<const char *> &args) {
     if (!args.empty()) {
         USBSerial.println("Help for specific commands is NYI.");
@@ -270,6 +285,8 @@ void helpMePlz(std::vector<const char *> &args) {
     for (const std::pair<std::string, Shell::Command> &p : Shell::registry())
         USBSerial.printf(" - %s\n", p.first.c_str());
 }
+
+}   // namespace ShellCommands
 
 void setup() {
     /*
@@ -310,18 +327,19 @@ void setup() {
             deferredPrinter();
     });
 
-    Shell::registerCmd("log", getTaskLog);
-    Shell::registerCmd("monitor", toggleMonitor);
-    Shell::registerCmd("memory", systemStatus);
+    Shell::registerCmd("log", ShellCommands::getTaskLog);
+    Shell::registerCmd("monitor", ShellCommands::toggleMonitor);
+    Shell::registerCmd("memory", ShellCommands::systemStatus);
     Shell::registerCmd("test", UnitTest::run);
-    Shell::registerCmd("help", helpMePlz);
+    Shell::registerCmd("mousesay", ShellCommands::mouseSay);
+    Shell::registerCmd("help", ShellCommands::helpMePlz);
 
     initUSB();
     initSerial();
     initMSC();
 
     if (FFat.begin(false)) {
-        Shell::registerCmd("tree", treeCmd);
+        Shell::registerCmd("tree", ShellCommands::treeCmd);
     }
     else {
         USBSerial.println("Failed to initialize filesystem");

@@ -77,8 +77,6 @@ bool initSerial()
 
 #endif
 
-const char mousey[] = "         %s\n         /\n(\\   /) /  _\n (0 0)____  \\\n \"\\ /\"    \\ /\n  |' ___   /\n   \\/   \\_/\n";
-
 class MyUSBCallbacks : public USBCallbacks {
     void onMount() {
         usbMounted = true;
@@ -91,14 +89,4 @@ class MyUSBCallbacks : public USBCallbacks {
 
 void initUSB() {
     EspTinyUSB::registerDeviceCallbacks(new MyUSBCallbacks());
-    Shell::registerCmd("mousesay", [](std::vector<const char*>& args){
-        std::string result;
-        for (const char *arg : args) {
-            result += arg;
-            result += " ";
-        }
-        if (!result.empty())
-            result.pop_back();
-        USBSerial.printf(mousey, result.c_str());
-    });
 }
