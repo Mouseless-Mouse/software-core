@@ -38,7 +38,7 @@ TFT_Parallel display(320, 170);
 
 threeml::Renderer renderer(&display);
 
-auto drawTask = Task("Draw Task", 50000, 1, +[]() {
+auto drawTask = Task("Draw Task", 50000, 1, []() {
     uint32_t t = 0;
 
     display.init();
@@ -66,7 +66,7 @@ auto drawTask = Task("Draw Task", 50000, 1, +[]() {
 #else
 
 // Basic version `draw` controls LED_BUILTIN
-auto drawTask = Task("Draw Task", 5000, 1, +[]() {
+auto drawTask = Task("Draw Task", 5000, 1, []() {
     static uint32_t t = 0;
 
     ledcSetup(BASIC_LEDC_CHANNEL, 1000, 8);
@@ -83,7 +83,7 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
 
 #endif
 
-auto imuTask = Task("IMU Polling", 5000, 1, +[](const uint16_t freq) {
+auto imuTask = Task("IMU Polling", 5000, 1, [](const uint16_t freq) {
     const TickType_t delayTime = pdMS_TO_TICKS(1000 / freq);
     Orientation cur;
     if (!BNO086::init(false)) {
@@ -107,7 +107,7 @@ auto imuTask = Task("IMU Polling", 5000, 1, +[](const uint16_t freq) {
     }
 });
 
-auto touchTask = Task("Touch Reporting", 4000, 1, +[]() {
+auto touchTask = Task("Touch Reporting", 4000, 1, []() {
     TouchPads::init<TOUCH_PAD_NUM1, TOUCH_PAD_NUM2>(60000);
     while (1) {
         static uint32_t result1;
@@ -127,7 +127,7 @@ auto touchTask = Task("Touch Reporting", 4000, 1, +[]() {
 });
 
 #ifdef PRO_FEATURES
-auto displayDimTest = Task("Display Dimmer", 3000, 1, +[]() {
+auto displayDimTest = Task("Display Dimmer", 3000, 1, []() {
     static uint8_t brightness = 255;
     static int8_t dir = -1;
 
@@ -142,7 +142,7 @@ auto displayDimTest = Task("Display Dimmer", 3000, 1, +[]() {
 });
 #endif
 
-auto deferredPrinter = Task("Shell Greeter", 3000, 1, +[](){
+auto deferredPrinter = Task("Shell Greeter", 3000, 1, [](){
     while (!USBSerial) vTaskDelay(pdMS_TO_TICKS(100));
     USBSerial.print("\e[2J\e[1;1H"
         "|\\  /|           _  _  |  _   _  _    |\\  /|           _  _\n"
@@ -266,7 +266,7 @@ void treeCmd(std::vector<const char *> &args) {
 
 void mouseSay(std::vector<const char*>& args){
     static const char mousey[] = "         %s\n         /\n(\\   /) /  _\n (0 0)____  \\\n \"\\ /\"    \\ /\n  |' ___   /\n   \\/   \\_/\n";
-    
+
     std::string result;
     for (const char *arg : args) {
         result += arg;

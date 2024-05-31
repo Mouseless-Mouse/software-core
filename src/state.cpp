@@ -100,7 +100,7 @@ const std::unordered_map<std::string, Shell::Command>& Shell::registry() {
     return cmdRegistry;
 }
 
-auto eval = Task("Shell Evaluator", 10000, 1, +[](decltype(std::bind(std::declval<Shell::Command>(), std::declval<std::vector<const char*>&>())) boundCmd){
+auto eval = Task("Shell Evaluator", 10000, 1, [](decltype(std::bind(std::declval<Shell::Command>(), std::declval<std::vector<const char*>&>())) boundCmd){
     boundCmd();
     USBSerial.print("\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ ");
 });

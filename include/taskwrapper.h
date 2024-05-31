@@ -6,25 +6,36 @@
 
 typedef void* ParameterPtr;
 
-template <typename... Ts>
+template <typename F>
 struct TaskContainer {
-    typedef void (*TaskFn_t)(Ts...);
     TaskHandle_t handle;
-    TaskFn_t taskFn;
+    F taskFn;
     const char *name;
     const configSTACK_DEPTH_TYPE stackDepth;
     const UBaseType_t priority;
-    std::tuple<Ts...> *params;
     bool isRunning;
+    struct IParamTuple {
+        virtual ~IParamTuple() {}
+    };
+    template <typename... Ts>
+    struct ParamTuple : public IParamTuple {
+        std::tuple<Ts...> tup;
 
-    TaskContainer(const char *name, const configSTACK_DEPTH_TYPE stackDepth, const UBaseType_t priority, TaskFn_t taskFn)
+        ParamTuple(Ts... elements)
+            : tup(elements...)
+        {}
+    };
+
+    IParamTuple *params;
+
+    TaskContainer(const char *name, const configSTACK_DEPTH_TYPE stackDepth, const UBaseType_t priority, F taskFn)
         : handle(nullptr)
         , taskFn(taskFn)
         , name(name)
         , stackDepth(stackDepth)
         , priority(priority)
-        , params(nullptr)
         , isRunning(false)
+        , params(nullptr)
     {}
     ~TaskContainer() {
         if (handle)
@@ -36,9 +47,10 @@ struct TaskContainer {
     // Use a packed `index_sequence` to unpack the `params` tuple into the arguments of a call to `taskFn`
     template <size_t... Is>
     struct ApplyWrapper {
+        template <typename... Ts>
         static inline void apply(void *instPtr) {
-            TaskContainer<Ts...>* inst = reinterpret_cast<TaskContainer<Ts...>*>(instPtr);
-            inst->taskFn(std::get<Is>(*inst->params) ...);
+            TaskContainer<F>* inst = reinterpret_cast<TaskContainer<F>*>(instPtr);
+            inst->taskFn(std::get<Is>(reinterpret_cast<ParamTuple<Ts...>*>(inst->params)->tup) ...);    // dynamic_cast not permitted with -fno-rtti
             delete inst->params;
             inst->params = nullptr;
             inst->isRunning = false;
@@ -53,12 +65,13 @@ struct TaskContainer {
         return ApplyWrapper<Is...>();
     }
     
+    template <typename... Ts>
     bool operator () (Ts... args) {
         if (params) delete params;
-        params = new std::tuple<Ts...>{args...};
+        params = new ParamTuple<Ts...>{args...};
         return isRunning = pdPASS == xTaskCreatePinnedToCore(
             // Get a function pointer to the instantiation of `ApplyWrapper::apply(void *inst)` that matches and can unpack the `params` tuple
-            decltype(wrap(std::declval<std14::index_sequence_for<Ts...>>()))::apply,
+            decltype(wrap(std::declval<std14::index_sequence_for<Ts...>>()))::template apply<Ts...>,
             name,
             stackDepth,
             this,
@@ -80,9 +93,9 @@ struct TaskContainer {
 };
 
 // Factory function to work around the lack of CTAD in C++14
-template <typename... Ts>
-TaskContainer<Ts...> Task(const char *&&name, const configSTACK_DEPTH_TYPE &&stackDepth, const UBaseType_t &&priority, void (*&&taskFn)(Ts...)) {
-    return TaskContainer<Ts...>(std::forward<const char*>(name), std::forward<const configSTACK_DEPTH_TYPE>(stackDepth), std::forward<const UBaseType_t>(priority), std::forward<void(*)(Ts...)>(taskFn));
+template <typename F>
+TaskContainer<F> Task(const char *&&name, const configSTACK_DEPTH_TYPE &&stackDepth, const UBaseType_t &&priority, F&& taskFn) {
+    return TaskContainer<F>(std::forward<const char*>(name), std::forward<const configSTACK_DEPTH_TYPE>(stackDepth), std::forward<const UBaseType_t>(priority), std::forward<F>(taskFn));
 }
 
 
