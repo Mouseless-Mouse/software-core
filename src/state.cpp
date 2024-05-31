@@ -147,13 +147,11 @@ void parseCmd(char *cmd) {
             USBSerial.println("\e[31mCould not launch Shell Evaluator\e[0m");
         }
     }
-    else if (name == "^C") {
-        eval.stop();
-        if (!eval.isRunning)
-            USBSerial.print("\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ ");
+    else {
+        // For some reason, using `name.c_str()` here causes a system crash with names longer than ~4 characters
+        USBSerial.print("Unrecognized commmand.\n\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ ");
     }
-    else
-        USBSerial.printf("Unrecognized commmand '%s'\n\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ ", name.c_str());
+    
 }
 
 void Shell::serialDataCB() {

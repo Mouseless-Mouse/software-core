@@ -21,7 +21,7 @@ void add(std::string&& name, F&& invocable) {
     );
 }
 
-void run(std::vector<const char*>& args);
+void run(const std::vector<const char*>& args);
 
 };  // namespace UnitTest
 
