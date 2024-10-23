@@ -53,6 +53,8 @@ class Renderer {
     bool m_must_reload;
     std::string m_current_file;
     bool m_going_back;
+    bool m_callback_to_run;
+    std::string m_pending_callback;
 
     /// @brief Clamps the value of m_scroll_target so that the screen doesn't
     /// show anything outside of the document, if possible.
@@ -111,6 +113,19 @@ class Renderer {
     /// the call to reflect the bottom of the rendered node.
     void render_h1(const std::vector<std::string> &plaintext_data,
                    std::size_t &position);
+
+    /// @brief Renders a button to the screen. Buttons are rendered in a
+    /// rectangle with width (text_width + 10) pixels and height (text_height +
+    /// 2 * text_lines + 10) pixels. If not selected, the border of the
+    /// rectangle is TEXT_COLOR; if selected, the border is ACCENT_COLOR. The
+    /// text color is always TEXT_COLOR. The text is offset from the top-left
+    /// corner of the rectangle by 5px each direction.
+    /// @param node The button node.
+    /// @param position The current scroll position on the page. Updated after
+    /// the call to reflect the bottom of the rendered node.
+    /// @param index The index in the selectable nodes list of this node.
+    void render_button(const DOMNode *node, std::size_t &position,
+                       std::size_t index);
 
     /// @brief Renders a DOM node to the screen. Recursively draws nodes in a
     /// pre-order fashion (i.e. parent, then children). Invisible nodes (like

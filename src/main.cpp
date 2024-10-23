@@ -38,7 +38,7 @@ TFT_Parallel display(320, 170);
 
 threeml::Renderer renderer(&display);
 
-auto drawTask = Task("Draw Task", 50000, 1, +[]() {
+auto drawTask = Task("Draw Task", 25000, 1, +[]() {
     uint32_t t = 0;
 
     display.init();
@@ -90,18 +90,22 @@ auto imuTask = Task("IMU Polling", 5000, 1, +[](const uint16_t freq) {
         Error<TaskLog>().println("Failed to initialize BNO086");
         return;
     }
+    // Error<TaskLog>().println("ughhhhh");
+    // vTaskDelay(portMAX_DELAY);
     vTaskDelay(pdMS_TO_TICKS(100));
     uint32_t t = 0;
     mouse.begin();
     mouseInitialized = true;
     while (1) {
-        cur = BNO086::poll();
-        mouse.move(
-            clamp(-50, static_cast<int>(pow(cur.pitch, 3) / 60), 50),
-            clamp(-50, static_cast<int>(pow(cur.roll, 3) / 60), 50)
-        );
+        TaskPrint().println("IMU Polling");
+        // cur = BNO086::poll();
+        // mouse.move(
+        //     clamp(-50, static_cast<int>(pow(cur.pitch, 3) / 60), 50),
+        //     clamp(-50, static_cast<int>(pow(cur.roll, 3) / 60), 50)
+        // );
+        // TaskPrint().println(mouse.isConnected() ? "Mouse connected" : "Mouse disconnected");
         if (++t % 32 == 0) {
-            TaskPrint().printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
+            // TaskPrint().printf("Roll: % 7.2f, Pitch: % 7.2f, Yaw: % 7.2f\n", cur.roll, cur.pitch, cur.yaw);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -275,20 +279,6 @@ void setup() {
     /*
         Unit testing block - Please place unit tests here until someone comes up with a better place for them
     */
-
-    // UnitTest::add("js", [](){
-    //     duk = duk_create_heap_default();
-    //     duk_push_c_function(duk, native_print, 1);
-    //     duk_put_global_string(duk, "print");
-    //     duk_eval_string(duk,
-    //         "var fib = function(n) {"
-    //             "return n < 2 ? n : fib(n-2) + fib(n-1)"
-    //         "};"
-    //         "print(fib(6));"
-    //     );
-    //     USBSerial.println((int)duk_get_int(duk, -1));
-    //     duk_destroy_heap(duk);
-    // });
 
 #ifdef PRO_FEATURES
     UnitTest::add("backlight", []() {

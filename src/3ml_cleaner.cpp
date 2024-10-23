@@ -138,6 +138,7 @@ DOMNode::DOMNode(NodeType type, std::string plaintext_content,
                  std::vector<DOMNode *> children, DOMNode *parent)
     : type(type), height(0), children(children), parent(parent),
       selectable(false), num_selectable_children(0) {
+    std::size_t padding = (parent->type == NodeType::BUTTON) ? 10 : 2;
     byte textsize = (parent->type == NodeType::H1) ? 3 : 2;
     dummyDisplay.setTextSize(textsize);
     dummyDisplay.setTextWrap(false);
@@ -146,7 +147,8 @@ DOMNode::DOMNode(NodeType type, std::string plaintext_content,
     while (plaintext_content.substr(start).length()) {
         height += textsize * 10;
         while (len > 0 && dummyDisplay.textWidth(
-                              plaintext_content.substr(start, len).c_str()) >
+                              plaintext_content.substr(start, len).c_str()) +
+                                  2 * padding >
                               dummyDisplay.width())
             --len;
         if (len == plaintext_content.substr(start).length()) {

@@ -97,6 +97,10 @@ void threeml::Renderer::interact() {
         m_must_reload = true;
         m_current_file = node->unique_attributes["href"];
         break;
+    case threeml::NodeType::BUTTON:
+        m_callback_to_run = true;
+        m_pending_callback = node->unique_attributes["onclick"];
+        break;
     }
 }
 
@@ -163,6 +167,56 @@ void threeml::Renderer::render_h1(
     }
 }
 
+void threeml::Renderer::render_button(const DOMNode *node,
+                                      std::size_t &position,
+                                      std::size_t index) {
+    auto plaintext_data = node->children.front()->plaintext_data;
+    // Update the positioning information for this node.
+    m_selectable_nodes[index].top = position;
+    // Calculate the width and height of the bounding box
+    std::size_t width = 0;
+    std::size_t height = 0;
+    for (const auto &line : plaintext_data) {
+        width = (line.size() > width) ? line.size() : width;
+        height++;
+    }
+    width = width * 12 + 10;  // 12 pixels per character, plus 10 for padding
+    height = height * 18 + 8; // Minus 2 for padding on the last line, plus 10
+                              // for padding on the bottom
+    auto border_color = TEXT_COLOR;
+    if (!m_selectable_nodes.empty() &&
+        m_selectable_nodes[m_current_selected].node == node) {
+        border_color = ACCENT_COLOR;
+    }
+    auto screen_position =
+        STATUS_BAR_HEIGHT + position -
+        m_scroll_height; // Only used for drawing the box; the way text is drawn
+                         // immediately invalidates this value, so we need to
+                         // keep recalculating it.
+    m_display->drawFastHLine(2, screen_position, width, border_color);
+    m_display->drawFastHLine(2, screen_position + height, width, border_color);
+    m_display->drawFastVLine(2, screen_position, height, border_color);
+    m_display->drawFastVLine(2 + width, screen_position, height, border_color);
+    m_display->setTextColor(TEXT_COLOR, BACKGROUND_COLOR);
+    m_display->setTextSize(2); // 12x16 pixels
+    position += 5;             // 5 pixels of padding
+    if (!plaintext_data.empty()) {
+        m_display->setCursor(7, STATUS_BAR_HEIGHT + position - m_scroll_height);
+        m_display->print(plaintext_data.front().c_str());
+        position += 16; // 16 pixels of text
+    }
+    for (auto it = plaintext_data.begin() + 1; it != plaintext_data.end();
+         it++) {
+        position += 2; // 2 pixels of padding
+        m_display->setCursor(7, STATUS_BAR_HEIGHT + position - m_scroll_height);
+        m_display->print(it->c_str());
+        position += 16; // 16 pixels of text
+    }
+    // Final update to the positioning information for this node.
+    position = m_selectable_nodes[index].top + height + 2;
+    m_selectable_nodes[index].bottom = position;
+}
+
 void threeml::Renderer::render_node(const threeml::DOMNode *node,
                                     std::size_t &position,
                                     std::size_t &selectable_index) {
@@ -190,6 +244,11 @@ void threeml::Renderer::render_node(const threeml::DOMNode *node,
         render_link(node, position, selectable_index);
         selectable_index++;
         break;
+    case threeml::NodeType::BUTTON:
+        child = node->children.front();
+        position += 4;
+        render_button(node, position, selectable_index);
+        selectable_index++;
     }
 
     if (node->type == threeml::NodeType::DIV ||
@@ -241,6 +300,12 @@ void threeml::Renderer::render() {
         m_must_reload = false;
         load_file(m_current_file.c_str(), !m_going_back);
         m_going_back = false;
+    } else if (m_callback_to_run) {
+        m_callback_to_run = false;
+        TaskLog().println("Running callback");
+        if (m_js_ctx != nullptr) {
+            duk_peval_string(m_js_ctx, m_pending_callback.c_str());
+        }
     }
 
     xSemaphoreTake(m_dom_mutex, portMAX_DELAY); // Lock the DOM for rendering.

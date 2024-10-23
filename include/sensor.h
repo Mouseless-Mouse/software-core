@@ -3,7 +3,8 @@
 #include <Wire.h>
 #include "SparkFun_BNO08x_Arduino_Library.h"
 
-#define BNO08X_ADDR 0x4B
+#define BNO08X_ADDR 0x4A
+#define BNO08X_ADDR2 0x4B
 
 
 // Rotation measurement structure

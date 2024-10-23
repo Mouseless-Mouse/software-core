@@ -2,8 +2,9 @@
 
 #include <Wire.h>
 
-#include "usb_classes.h"
 #include "state.h"
+#include "usb_classes.h"
+
 
 // #define PRO_PCB
 
@@ -42,9 +43,9 @@ bool BNO086::init(bool wireInitialized) {
         return false;
     }
 #ifdef PRO_FEATURES
-    if(!imu.begin())
+    if (!imu.begin())
 #else
-    if(!imu.begin(0x4A))
+    if (!imu.begin(BNO08X_ADDR) && !imu.begin(BNO08X_ADDR2))
 #endif
     {
         // USBSerial.println("Could not communicate with IMU");
@@ -54,12 +55,12 @@ bool BNO086::init(bool wireInitialized) {
         // USBSerial.println("Could not configure IMU calibration");
         return false;
     }
-    delay(100);
+    vTaskDelay(pdMS_TO_TICKS(100));
     if (!imu.enableReport(ROT_VECTOR_TYPE)) {
         // USBSerial.println("Could not enable IMU rotation vector");
         return false;
     }
-    delay(100);
+    vTaskDelay(pdMS_TO_TICKS(100));
     return true;
 }
 
@@ -71,22 +72,21 @@ Orientation BNO086::poll() {
         while (!imu.getSensorEvent()) {
             if (imu.wasReset()) {
                 imu.enableReport(ROT_VECTOR_TYPE);
-            }
-            else if (xTaskGetTickCount() - lastReportTime > pdMS_TO_TICKS(500)) {
+            } else if (xTaskGetTickCount() - lastReportTime >
+                       pdMS_TO_TICKS(500)) {
                 Error<TaskLog>().println("IMU crash detected! Resetting...");
                 lastReportTime = xTaskGetTickCount();
                 init(true);
                 vTaskDelay(pdMS_TO_TICKS(100));
-            }
-            else
+            } else
                 vTaskDelay(pdMS_TO_TICKS(20));
         }
         eventId = imu.getSensorEventID();
     } while (eventId != ROT_VECTOR_TYPE);
 
-    return Orientation {
-        imu.getRoll() * 180.f / PI_FLOAT,   // Convert roll to degrees
-        imu.getPitch() * 180.f / PI_FLOAT,  // Convert pitch to degrees
-        imu.getYaw() * 180.f / PI_FLOAT     // Convert yaw / heading to degrees
+    return Orientation{
+        imu.getRoll() * 180.f / PI_FLOAT,  // Convert roll to degrees
+        imu.getPitch() * 180.f / PI_FLOAT, // Convert pitch to degrees
+        imu.getYaw() * 180.f / PI_FLOAT    // Convert yaw / heading to degrees
     };
 }
