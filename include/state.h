@@ -9,7 +9,7 @@
 
 namespace Shell {
 
-typedef void (*Command)(std::vector<const char*>&);
+typedef void (*Command)(const std::vector<const char*>&);
 
 void init();
 

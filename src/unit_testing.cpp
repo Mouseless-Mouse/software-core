@@ -4,7 +4,7 @@
 
 std::unordered_map<std::string, BaseCallback*> UnitTest::testCbRegistry;
 
-void UnitTest::run(std::vector<const char*>& args) {
+void UnitTest::run(const std::vector<const char*>& args) {
     if (args.size() != 1) {
         USBSerial.println("Expected 1 argument");
         return;

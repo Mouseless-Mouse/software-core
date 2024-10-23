@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <BleMouse.h>
 #include <FFat.h>
+#include "esp_core_dump.h"
 
 // #define PRO_FEATURES Only define this for MMPro (handled automatically by
 // platformio config when building project) wrap statements in #ifdef DEBUG
@@ -38,7 +39,7 @@ TFT_Parallel display(320, 170);
 
 threeml::Renderer renderer(&display);
 
-auto drawTask = Task("Draw Task", 25000, 1, +[]() {
+auto drawTask = Task("Draw Task", 50000, 1, []() {
     uint32_t t = 0;
 
     display.init();
@@ -66,7 +67,7 @@ auto drawTask = Task("Draw Task", 25000, 1, +[]() {
 #else
 
 // Basic version `draw` controls LED_BUILTIN
-auto drawTask = Task("Draw Task", 5000, 1, +[]() {
+auto drawTask = Task("Draw Task", 5000, 1, []() {
     static uint32_t t = 0;
 
     ledcSetup(BASIC_LEDC_CHANNEL, 1000, 8);
@@ -83,12 +84,12 @@ auto drawTask = Task("Draw Task", 5000, 1, +[]() {
 
 #endif
 
-auto imuTask = Task("IMU Polling", 5000, 1, +[](const uint16_t freq) {
+auto imuTask = Task("IMU Polling", 5000, 1, [](const uint16_t freq) {
     const TickType_t delayTime = pdMS_TO_TICKS(1000 / freq);
     Orientation cur;
     if (!BNO086::init(false)) {
         Error<TaskLog>().println("Failed to initialize BNO086");
-        return;
+        while (1) vTaskDelay(portMAX_DELAY);    // Keep the task alive so its log can be fetched
     }
     // Error<TaskLog>().println("ughhhhh");
     // vTaskDelay(portMAX_DELAY);
@@ -111,7 +112,7 @@ auto imuTask = Task("IMU Polling", 5000, 1, +[](const uint16_t freq) {
     }
 });
 
-auto touchTask = Task("Touch Reporting", 4000, 1, +[]() {
+auto touchTask = Task("Touch Reporting", 4000, 1, []() {
     TouchPads::init<TOUCH_PAD_NUM1, TOUCH_PAD_NUM2>(60000);
     while (1) {
         static uint32_t result1;
@@ -131,7 +132,7 @@ auto touchTask = Task("Touch Reporting", 4000, 1, +[]() {
 });
 
 #ifdef PRO_FEATURES
-auto displayDimTest = Task("Display Dimmer", 3000, 1, +[]() {
+auto displayDimTest = Task("Display Dimmer", 3000, 1, []() {
     static uint8_t brightness = 255;
     static int8_t dir = -1;
 
@@ -146,16 +147,7 @@ auto displayDimTest = Task("Display Dimmer", 3000, 1, +[]() {
 });
 #endif
 
-auto deferredPrinter = Task("Shell Greeter", 3000, 1, +[](){
-    while (!USBSerial) vTaskDelay(pdMS_TO_TICKS(100));
-    USBSerial.print("\e[2J\e[1;1H"
-        "|\\  /|           _  _  |  _   _  _    |\\  /|           _  _\n"
-        "| \\/ | /\"\\ |  | /_ /_| | /_| /_ /_    | \\/ | /\"\\ |  | /_ /_|\n"
-        "|    | \\_/ \\_/| _/ \\_  | \\_  _/ _/    |    | \\_/ \\_/| _/ \\_\n\n"
-        "Welcome to the Mouseless Debug Terminal! Type 'help' for a list of available commands.\n\n"
-        "\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ "
-    );
-});
+namespace ShellCommands {
 
 void treeList(File &dir, int level = 0) {
     if (!dir || !dir.isDirectory()) {
@@ -179,7 +171,7 @@ void treeList(File &dir, int level = 0) {
     }
 }
 
-void getTaskLog(std::vector<const char*>& args) {
+void getTaskLog(const std::vector<const char*>& args) {
     if (args.size() != 1) {
         USBSerial.println("Expected 1 argument");
         return;
@@ -203,7 +195,7 @@ void getTaskLog(std::vector<const char*>& args) {
     USBSerial.print(TaskLog(status).get().c_str()); // Log should end with newline
 }
 
-void toggleMonitor(std::vector<const char*>& args) {
+void toggleMonitor(const std::vector<const char*>& args) {
     if (args.size() != 1) {
         USBSerial.println("Expected 1 argument");
         return;
@@ -233,7 +225,7 @@ void toggleMonitor(std::vector<const char*>& args) {
     }
 }
 
-void systemStatus(std::vector<const char *> &args) {
+void systemStatus(const std::vector<const char *> &args) {
     if (!args.empty()) {
         USBSerial.println("Expected no arguments");
         return;
@@ -248,7 +240,7 @@ void systemStatus(std::vector<const char *> &args) {
     USBSerial.printf("Largest free SPIRAM heap block: %i\n", heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
 }
 
-void treeCmd(std::vector<const char *> &args) {
+void treeCmd(const std::vector<const char *> &args) {
     if (args.empty()) {
         File root = FFat.open("/");
         treeList(root);
@@ -266,7 +258,20 @@ void treeCmd(std::vector<const char *> &args) {
     treeList(target);
 }
 
-void helpMePlz(std::vector<const char *> &args) {
+void mouseSay(const std::vector<const char*>& args){
+    static const char mousey[] = "         %s\n         /\n(\\   /) /  _\n (0 0)____  \\\n \"\\ /\"    \\ /\n  |' ___   /\n   \\/   \\_/\n";
+
+    std::string result;
+    for (const char *arg : args) {
+        result += arg;
+        result += " ";
+    }
+    if (!result.empty())
+        result.pop_back();
+    USBSerial.printf(mousey, result.c_str());
+}
+
+void helpMePlz(const std::vector<const char *> &args) {
     if (!args.empty()) {
         USBSerial.println("Help for specific commands is NYI.");
     }
@@ -274,6 +279,46 @@ void helpMePlz(std::vector<const char *> &args) {
     for (const std::pair<std::string, Shell::Command> &p : Shell::registry())
         USBSerial.printf(" - %s\n", p.first.c_str());
 }
+
+void getCrashReason(const std::vector<const char*>& args) {
+    if (!args.empty()) {
+        USBSerial.println("Expected no arguments");
+    }
+    size_t coreDumpLoc;
+    size_t coreDumpSz;
+    if (esp_core_dump_image_get(&coreDumpLoc, &coreDumpSz) != ESP_OK) {
+        USBSerial.println("Could not get core dump image");
+        return;
+    }
+    esp_core_dump_summary_t summary;
+    if (esp_core_dump_get_summary(&summary) != ESP_OK) {
+        USBSerial.println("Could not retrieve core dump summary");
+        return;
+    }
+    esp_core_dump_bt_info_t& backtrace = summary.exc_bt_info;
+    USBSerial.printf("Crash caused by task '%s' (Error Code %i):\n", summary.exc_task, summary.ex_info.exc_cause);
+    if (backtrace.corrupted)
+        USBSerial.println("Backtrace is corrupted");
+    for (size_t i = 0; i < backtrace.depth; ++i)
+        USBSerial.printf("%#0.8x ", backtrace.bt[i]);
+    USBSerial.println();
+}
+
+}   // namespace ShellCommands
+
+auto deferredPrinter = Task("Shell Greeter", 3000, 1, [](){
+    while (!USBSerial) vTaskDelay(pdMS_TO_TICKS(100));
+    USBSerial.print("\e[2J\e[1;1H"
+        "|\\  /|           _  _  |  _   _  _    |\\  /|           _  _\n"
+        "| \\/ | /\"\\ |  | /_ /_| | /_| /_ /_    | \\/ | /\"\\ |  | /_ /_|\n"
+        "|    | \\_/ \\_/| _/ \\_  | \\_  _/ _/    |    | \\_/ \\_/| _/ \\_\n\n"
+        "Welcome to the Mouseless Debug Terminal! Type 'help' for a list of available commands.\n\n"
+    );
+    if (esp_reset_reason() == ESP_RST_PANIC) {
+        ShellCommands::getCrashReason(std::vector<const char*>());
+    }
+    USBSerial.print("\e[92mdev@mouseless\e[0m:\e[36m/\e[0m$ ");
+});
 
 void setup() {
     /*
@@ -300,18 +345,20 @@ void setup() {
             deferredPrinter();
     });
 
-    Shell::registerCmd("log", getTaskLog);
-    Shell::registerCmd("monitor", toggleMonitor);
-    Shell::registerCmd("memory", systemStatus);
+    Shell::registerCmd("log", ShellCommands::getTaskLog);
+    Shell::registerCmd("monitor", ShellCommands::toggleMonitor);
+    Shell::registerCmd("memory", ShellCommands::systemStatus);
     Shell::registerCmd("test", UnitTest::run);
-    Shell::registerCmd("help", helpMePlz);
+    Shell::registerCmd("mousesay", ShellCommands::mouseSay);
+    Shell::registerCmd("crashdump", ShellCommands::getCrashReason);
+    Shell::registerCmd("help", ShellCommands::helpMePlz);
 
     initUSB();
     initSerial();
     initMSC();
 
     if (FFat.begin(false)) {
-        Shell::registerCmd("tree", treeCmd);
+        Shell::registerCmd("tree", ShellCommands::treeCmd);
     }
     else {
         USBSerial.println("Failed to initialize filesystem");
